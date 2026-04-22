@@ -64,6 +64,12 @@ Home-server-first. LAN-only. Single-user. SQLite. One Python binary. Runs on 4 G
 
 claude-p is an independent open-source project. It is not affiliated with, endorsed by, or sponsored by Anthropic. "Claude" is a trademark of Anthropic, PBC.
 
+## Contributing
+
+See [CLAUDE.md](./CLAUDE.md) for conventions (schema changes, Pydantic rules, the
+"never `--bare`" rule) and [CHANGELOG.md](./CHANGELOG.md) for the history of
+changes. Every code change should add a line under `[Unreleased]`.
+
 ## License
 
 MIT. See [LICENSE](./LICENSE).
