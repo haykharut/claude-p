@@ -83,3 +83,49 @@ def test_apply_event_handles_missing_usage_fields():
     assert r.cost_usd == pytest.approx(0.01)
     assert r.input_tokens == 0
     assert r.output_tokens == 0
+
+
+def test_apply_event_captures_model_usage():
+    r = ClaudeResult()
+    apply_event(
+        r,
+        {
+            "type": "result",
+            "total_cost_usd": 0.1,
+            "usage": {"input_tokens": 10, "output_tokens": 5},
+            "modelUsage": {
+                "claude-opus-4-7": {
+                    "inputTokens": 10,
+                    "outputTokens": 5,
+                    "costUSD": 0.1,
+                },
+                "claude-haiku-4-5": {
+                    "inputTokens": 3,
+                    "outputTokens": 1,
+                    "costUSD": 0.0001,
+                },
+            },
+        },
+    )
+    assert set(r.model_usage.keys()) == {"claude-opus-4-7", "claude-haiku-4-5"}
+    assert r.model_usage["claude-opus-4-7"]["costUSD"] == pytest.approx(0.1)
+
+
+def test_apply_event_captures_rate_limit_events():
+    r = ClaudeResult()
+    apply_event(
+        r,
+        {
+            "type": "rate_limit_event",
+            "rate_limit_info": {
+                "status": "allowed",
+                "resetsAt": 1776859200,
+                "rateLimitType": "five_hour",
+                "overageStatus": "allowed",
+                "isUsingOverage": False,
+            },
+        },
+    )
+    assert len(r.rate_limit_events) == 1
+    assert r.rate_limit_events[0]["rateLimitType"] == "five_hour"
+    assert r.rate_limit_events[0]["resetsAt"] == 1776859200

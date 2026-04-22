@@ -63,7 +63,14 @@ def _resolve_entrypoint(job_dir: Path, entrypoint: str) -> Path:
     return p
 
 
-def _aggregate_claude_calls(run_dir: Path) -> dict[str, float | int]:
+def _aggregate_claude_calls(
+    run_dir: Path,
+) -> tuple[dict[str, float | int], dict[str, dict[str, float | int]]]:
+    """Return (totals, per_model_totals) by scanning claude_calls.jsonl.
+
+    per_model_totals maps model-name → accumulated {cost_usd, input_tokens,
+    output_tokens, cache_read_tokens, cache_creation_tokens}.
+    """
     path = run_dir / "claude_calls.jsonl"
     totals: dict[str, float | int] = {
         "cost_usd": 0.0,
@@ -72,8 +79,9 @@ def _aggregate_claude_calls(run_dir: Path) -> dict[str, float | int]:
         "cache_read_tokens": 0,
         "cache_creation_tokens": 0,
     }
+    per_model: dict[str, dict[str, float | int]] = {}
     if not path.exists():
-        return totals
+        return totals, per_model
     for line in path.read_text().splitlines():
         line = line.strip()
         if not line:
@@ -84,7 +92,45 @@ def _aggregate_claude_calls(run_dir: Path) -> dict[str, float | int]:
             continue
         for k in totals:
             totals[k] += row.get(k, 0) or 0
-    return totals
+        mu = row.get("model_usage") or {}
+        if isinstance(mu, dict):
+            for model, m in mu.items():
+                if not isinstance(m, dict):
+                    continue
+                bucket = per_model.setdefault(
+                    model,
+                    {
+                        "cost_usd": 0.0,
+                        "input_tokens": 0,
+                        "output_tokens": 0,
+                        "cache_read_tokens": 0,
+                        "cache_creation_tokens": 0,
+                    },
+                )
+                bucket["cost_usd"] += float(m.get("costUSD") or 0)
+                bucket["input_tokens"] += int(m.get("inputTokens") or 0)
+                bucket["output_tokens"] += int(m.get("outputTokens") or 0)
+                bucket["cache_read_tokens"] += int(m.get("cacheReadInputTokens") or 0)
+                bucket["cache_creation_tokens"] += int(
+                    m.get("cacheCreationInputTokens") or 0
+                )
+    return totals, per_model
+
+
+def _read_rate_limit_events(run_dir: Path) -> list[dict]:
+    path = run_dir / "claude_rate_limits.jsonl"
+    if not path.exists():
+        return []
+    out: list[dict] = []
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            out.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+    return out
 
 
 def _copy_outputs(manifest: Manifest, workspace_dir: Path, run_dir: Path) -> list[str]:
@@ -175,7 +221,8 @@ async def execute_run(
         exit_code = -1
 
     ended = datetime.now(timezone.utc)
-    ledger = _aggregate_claude_calls(run_dir)
+    ledger, per_model = _aggregate_claude_calls(run_dir)
+    rate_limit_events = _read_rate_limit_events(run_dir)
     copied_outputs: list[str] = []
     try:
         copied_outputs = _copy_outputs(manifest, workspace_dir, run_dir)
@@ -212,11 +259,69 @@ async def execute_run(
             cache_creation_tokens=int(ledger["cache_creation_tokens"]),
             error=error,
         )
+        _persist_model_usage(conn, run_id, per_model)
+        _persist_rate_limits(conn, run_id, ended, rate_limit_events)
         if manifest.schedule:
             next_fire = croniter(manifest.schedule, ended).get_next(datetime)
             queries.bump_schedule(conn, manifest.name, ended, next_fire)
 
     return run_id
+
+
+def _persist_model_usage(
+    conn, run_id: str, per_model: dict[str, dict[str, float | int]]
+) -> None:
+    for model, totals in per_model.items():
+        queries.upsert_run_model_usage(
+            conn,
+            run_id,
+            model,
+            cost_usd=float(totals["cost_usd"]),
+            input_tokens=int(totals["input_tokens"]),
+            output_tokens=int(totals["output_tokens"]),
+            cache_read_tokens=int(totals["cache_read_tokens"]),
+            cache_creation_tokens=int(totals["cache_creation_tokens"]),
+        )
+
+
+def _persist_rate_limits(
+    conn, run_id: str, observed_at: datetime, events: list[dict]
+) -> None:
+    """Fold a list of rate_limit_info dicts into rate_limit_snapshots.
+
+    The event shape mirrors stream-json: rateLimitType, status, resetsAt
+    (unix epoch seconds), overageStatus, overageResetsAt, isUsingOverage.
+    """
+    for info in events:
+        rl_type = info.get("rateLimitType")
+        status = info.get("status")
+        resets_at_epoch = info.get("resetsAt")
+        if not rl_type or not status or resets_at_epoch is None:
+            continue
+        try:
+            resets_at = datetime.fromtimestamp(int(resets_at_epoch), tz=timezone.utc)
+        except (TypeError, ValueError):
+            continue
+        overage_epoch = info.get("overageResetsAt")
+        overage_resets_at = None
+        if overage_epoch is not None:
+            try:
+                overage_resets_at = datetime.fromtimestamp(
+                    int(overage_epoch), tz=timezone.utc
+                )
+            except (TypeError, ValueError):
+                overage_resets_at = None
+        queries.upsert_rate_limit_snapshot(
+            conn,
+            rate_limit_type=rl_type,
+            status=status,
+            resets_at=resets_at,
+            overage_status=info.get("overageStatus"),
+            overage_resets_at=overage_resets_at,
+            is_using_overage=bool(info.get("isUsingOverage")),
+            observed_at=observed_at,
+            observed_run_id=run_id,
+        )
 
 
 def _build_argv(cfg: Config, manifest: Manifest, job_dir: Path) -> list[str]:

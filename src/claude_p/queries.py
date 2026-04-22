@@ -15,11 +15,14 @@ from pathlib import Path
 from claude_p.models import (
     JobRollup,
     JobState,
+    ModelUsage,
+    RateLimitSnapshot,
     Run,
     Schedule,
     WEEKLY_BUDGET_SETTING,
     WindowTotals,
     as_job_state,
+    as_rate_limit_snapshot,
     as_run,
     as_schedule,
 )
@@ -261,3 +264,112 @@ def set_weekly_budget(conn: sqlite3.Connection, amount: float) -> None:
         "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
         (WEEKLY_BUDGET_SETTING, str(amount)),
     )
+
+
+# -- Rate limits + model usage ---------------------------------------------
+
+
+def upsert_rate_limit_snapshot(
+    conn: sqlite3.Connection,
+    *,
+    rate_limit_type: str,
+    status: str,
+    resets_at: datetime,
+    overage_status: str | None,
+    overage_resets_at: datetime | None,
+    is_using_overage: bool,
+    observed_at: datetime,
+    observed_run_id: str | None,
+) -> None:
+    conn.execute(
+        """
+        INSERT INTO rate_limit_snapshots(
+            rate_limit_type, status, resets_at, overage_status,
+            overage_resets_at, is_using_overage, observed_at, observed_run_id
+        ) VALUES(?,?,?,?,?,?,?,?)
+        ON CONFLICT(rate_limit_type) DO UPDATE SET
+            status             = excluded.status,
+            resets_at          = excluded.resets_at,
+            overage_status     = excluded.overage_status,
+            overage_resets_at  = excluded.overage_resets_at,
+            is_using_overage   = excluded.is_using_overage,
+            observed_at        = excluded.observed_at,
+            observed_run_id    = excluded.observed_run_id
+        """,
+        (
+            rate_limit_type,
+            status,
+            resets_at.isoformat(),
+            overage_status,
+            overage_resets_at.isoformat() if overage_resets_at else None,
+            1 if is_using_overage else 0,
+            observed_at.isoformat(),
+            observed_run_id,
+        ),
+    )
+
+
+def list_rate_limit_snapshots(conn: sqlite3.Connection) -> list[RateLimitSnapshot]:
+    rows = conn.execute(
+        "SELECT * FROM rate_limit_snapshots ORDER BY rate_limit_type"
+    ).fetchall()
+    return [as_rate_limit_snapshot(r) for r in rows]
+
+
+def upsert_run_model_usage(
+    conn: sqlite3.Connection,
+    run_id: str,
+    model: str,
+    *,
+    cost_usd: float,
+    input_tokens: int,
+    output_tokens: int,
+    cache_read_tokens: int,
+    cache_creation_tokens: int,
+) -> None:
+    conn.execute(
+        """
+        INSERT INTO run_model_usage(
+            run_id, model, cost_usd, input_tokens, output_tokens,
+            cache_read_tokens, cache_creation_tokens
+        ) VALUES(?,?,?,?,?,?,?)
+        ON CONFLICT(run_id, model) DO UPDATE SET
+            cost_usd             = cost_usd + excluded.cost_usd,
+            input_tokens         = input_tokens + excluded.input_tokens,
+            output_tokens        = output_tokens + excluded.output_tokens,
+            cache_read_tokens    = cache_read_tokens + excluded.cache_read_tokens,
+            cache_creation_tokens= cache_creation_tokens + excluded.cache_creation_tokens
+        """,
+        (
+            run_id,
+            model,
+            cost_usd,
+            input_tokens,
+            output_tokens,
+            cache_read_tokens,
+            cache_creation_tokens,
+        ),
+    )
+
+
+def model_usage_window(conn: sqlite3.Connection, hours: float) -> list[ModelUsage]:
+    start = _window_start(hours)
+    rows = conn.execute(
+        """
+        SELECT
+            mu.model                                AS model,
+            COUNT(DISTINCT mu.run_id)               AS runs,
+            COALESCE(SUM(mu.cost_usd), 0)           AS cost_usd,
+            COALESCE(SUM(mu.input_tokens), 0)       AS input_tokens,
+            COALESCE(SUM(mu.output_tokens), 0)      AS output_tokens,
+            COALESCE(SUM(mu.cache_read_tokens), 0)  AS cache_read_tokens,
+            COALESCE(SUM(mu.cache_creation_tokens), 0) AS cache_creation_tokens
+        FROM run_model_usage mu
+        JOIN runs r ON r.id = mu.run_id
+        WHERE r.started_at >= ?
+        GROUP BY mu.model
+        ORDER BY cost_usd DESC
+        """,
+        (start,),
+    ).fetchall()
+    return [ModelUsage.model_validate(dict(r)) for r in rows]

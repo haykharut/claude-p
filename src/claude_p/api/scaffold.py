@@ -215,4 +215,62 @@ async def _run_scaffold(cfg, scaffold: Scaffold) -> None:
                 cache_creation_tokens=r.cache_creation_tokens,
                 error=scaffold.error,
             )
+            _persist_model_usage_from_stream(conn, scaffold.id, r.model_usage)
+            _persist_rate_limit_events(
+                conn, scaffold.id, ended, r.rate_limit_events
+            )
         scaffold.done.set()
+
+
+def _persist_model_usage_from_stream(conn, run_id: str, mu: dict) -> None:
+    """Map stream-json camelCase model_usage → DB rows."""
+    if not isinstance(mu, dict):
+        return
+    for model, m in mu.items():
+        if not isinstance(m, dict):
+            continue
+        queries.upsert_run_model_usage(
+            conn,
+            run_id,
+            model,
+            cost_usd=float(m.get("costUSD") or 0),
+            input_tokens=int(m.get("inputTokens") or 0),
+            output_tokens=int(m.get("outputTokens") or 0),
+            cache_read_tokens=int(m.get("cacheReadInputTokens") or 0),
+            cache_creation_tokens=int(m.get("cacheCreationInputTokens") or 0),
+        )
+
+
+def _persist_rate_limit_events(
+    conn, run_id: str, observed_at: datetime, events: list[dict]
+) -> None:
+    for info in events:
+        rl_type = info.get("rateLimitType")
+        status = info.get("status")
+        resets_at_epoch = info.get("resetsAt")
+        if not rl_type or not status or resets_at_epoch is None:
+            continue
+        try:
+            resets_at = datetime.fromtimestamp(int(resets_at_epoch), tz=timezone.utc)
+        except (TypeError, ValueError):
+            continue
+        overage_epoch = info.get("overageResetsAt")
+        overage_resets_at = None
+        if overage_epoch is not None:
+            try:
+                overage_resets_at = datetime.fromtimestamp(
+                    int(overage_epoch), tz=timezone.utc
+                )
+            except (TypeError, ValueError):
+                overage_resets_at = None
+        queries.upsert_rate_limit_snapshot(
+            conn,
+            rate_limit_type=rl_type,
+            status=status,
+            resets_at=resets_at,
+            overage_status=info.get("overageStatus"),
+            overage_resets_at=overage_resets_at,
+            is_using_overage=bool(info.get("isUsingOverage")),
+            observed_at=observed_at,
+            observed_run_id=run_id,
+        )

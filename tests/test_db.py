@@ -14,12 +14,22 @@ def _tables(path: Path) -> set[str]:
         }
 
 
-def test_init_db_applies_initial_migration(tmp_path: Path):
+def test_init_db_applies_all_migrations(tmp_path: Path):
     p = tmp_path / "x.db"
     applied = db.init_db(p)
-    assert applied == [1]
+    # When new migrations land, extend this list.
+    assert applied == [1, 2]
     t = _tables(p)
-    for name in ("runs", "jobs_state", "schedules", "settings", "secrets", "schema_migrations"):
+    for name in (
+        "runs",
+        "jobs_state",
+        "schedules",
+        "settings",
+        "secrets",
+        "schema_migrations",
+        "rate_limit_snapshots",
+        "run_model_usage",
+    ):
         assert name in t
 
 
@@ -27,7 +37,7 @@ def test_init_db_is_idempotent(tmp_path: Path):
     p = tmp_path / "x.db"
     first = db.init_db(p)
     second = db.init_db(p)
-    assert first == [1]
+    assert first  # some migrations applied
     assert second == []
 
 

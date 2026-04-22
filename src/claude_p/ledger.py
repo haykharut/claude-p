@@ -8,7 +8,7 @@ from pathlib import Path
 
 from claude_p import queries
 from claude_p.db import connect
-from claude_p.models import JobRollup, WindowTotals
+from claude_p.models import JobRollup, ModelUsage, RateLimitSnapshot, WindowTotals
 
 
 def window_totals(db_path: Path, hours: float) -> WindowTotals:
@@ -29,3 +29,13 @@ def weekly_budget(db_path: Path) -> float:
 def set_weekly_budget(db_path: Path, amount: float) -> None:
     with connect(db_path) as conn:
         queries.set_weekly_budget(conn, amount)
+
+
+def rate_limit_snapshots(db_path: Path) -> list[RateLimitSnapshot]:
+    with connect(db_path) as conn:
+        return queries.list_rate_limit_snapshots(conn)
+
+
+def model_usage_window(db_path: Path, hours: float) -> list[ModelUsage]:
+    with connect(db_path) as conn:
+        return queries.model_usage_window(conn, hours)

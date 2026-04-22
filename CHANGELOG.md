@@ -10,6 +10,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - `CHANGELOG.md` (this file) and `CLAUDE.md` with project conventions for
   contributors (human and AI).
+- Rate-limit visibility on the ledger page. `claude -p` emits a
+  `rate_limit_event` with the 5-hour (and weekly, when present) window's
+  reset time and overage status; we now capture those, persist the
+  latest per window in a new `rate_limit_snapshots` table, and render
+  countdown + overage state as cards above the cost windows. Empty state
+  gets a "Probe now (<$0.01)" button that fires a one-word `claude -p`
+  call just to populate the snapshot.
+- Per-model cost / token breakdown. The final `result` event's
+  `modelUsage` field is now parsed per-run, persisted into a new
+  `run_model_usage` table, and rolled up on the ledger page as a
+  7-day "By model" table. Lets you see where the spend goes (Opus vs.
+  Sonnet vs. Haiku).
+- Migration `002_rate_limits_and_model_usage.sql` adds
+  `rate_limit_snapshots` and `run_model_usage`.
+- `RateLimitSnapshot` and `ModelUsage` models.
+- Unit tests for the new stream-json parsing paths
+  (`rate_limit_event`, `modelUsage`).
+
+### Changed
+- `ClaudeResult` now carries `model_usage` and `rate_limit_events`
+  fields. `run_claude()` writes an adjacent `claude_rate_limits.jsonl`
+  next to `claude_calls.jsonl` when invoked inside a job so the
+  executor can aggregate both.
 
 ## [0.1.0] - 2026-04-22
 

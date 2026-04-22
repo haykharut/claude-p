@@ -132,6 +132,42 @@ class SettingKV(BaseModel):
     value: str
 
 
+class RateLimitSnapshot(BaseModel):
+    """One row of `rate_limit_snapshots`. Mirrors the `rate_limit_event` in
+    stream-json output — the only signal Claude gives us about subscription
+    limits from outside the interactive `/usage` command."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    rate_limit_type: str
+    status: str
+    resets_at: datetime
+    overage_status: str | None = None
+    overage_resets_at: datetime | None = None
+    is_using_overage: bool = False
+    observed_at: datetime
+    observed_run_id: str | None = None
+
+
+class ModelUsage(BaseModel):
+    """Per-model cost/token breakdown — aggregated from `run_model_usage`."""
+
+    model: str
+    runs: int = 0
+    cost_usd: float = 0.0
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_creation_tokens: int = 0
+
+
+def as_rate_limit_snapshot(row) -> RateLimitSnapshot:
+    d = dict(row)
+    if "is_using_overage" in d and d["is_using_overage"] is not None:
+        d["is_using_overage"] = bool(d["is_using_overage"])
+    return RateLimitSnapshot.model_validate(d)
+
+
 WEEKLY_BUDGET_SETTING: str = "weekly_budget_usd"
 DASHBOARD_PASSWORD_SETTING: str = "dashboard_password_hash"
 

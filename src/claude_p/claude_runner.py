@@ -44,6 +44,14 @@ class ClaudeResult:
     is_error: bool = False
     stop_reason: str | None = None
     raw_events: list[dict[str, Any]] = field(default_factory=list)
+    # per-model breakdown from the final `result` event's `modelUsage` field.
+    # Keys are model names (e.g. "claude-opus-4-7[1m]"); values are the
+    # original dict from stream-json (costUSD, inputTokens, outputTokens, ...)
+    model_usage: dict[str, dict[str, Any]] = field(default_factory=dict)
+    # Every rate_limit_event observed during the run. We only persist the
+    # latest one per window type, but we keep all of them here in case a
+    # caller wants to inspect the trajectory.
+    rate_limit_events: list[dict[str, Any]] = field(default_factory=list)
 
 
 def build_claude_argv(
@@ -124,6 +132,14 @@ def apply_event(result: ClaudeResult, event: dict[str, Any]) -> None:
             result.output_tokens = int(usage.get("output_tokens") or 0)
             result.cache_read_tokens = int(usage.get("cache_read_input_tokens") or 0)
             result.cache_creation_tokens = int(usage.get("cache_creation_input_tokens") or 0)
+        mu = event.get("modelUsage") or {}
+        if isinstance(mu, dict):
+            result.model_usage = mu
+
+    elif etype == "rate_limit_event":
+        info = event.get("rate_limit_info") or {}
+        if isinstance(info, dict):
+            result.rate_limit_events.append(info)
 
 
 def _append_ledger(run_dir: Path, call: dict[str, Any]) -> None:
@@ -202,7 +218,8 @@ def run_claude(
         result.is_error = True
         result.stop_reason = result.stop_reason or f"claude exit={proc.returncode}: {stderr[:500]}"
 
-    # If we're running inside a claude-p job, append a ledger record.
+    # If we're running inside a claude-p job, append a ledger record +
+    # model usage + rate-limit observations for the executor to pick up.
     run_id = os.environ.get("CLAUDE_P_RUN_ID")
     job_dir = os.environ.get("CLAUDE_P_JOB_DIR")
     if run_id and job_dir:
@@ -218,7 +235,18 @@ def run_claude(
                 "num_turns": result.num_turns,
                 "session_id": result.session_id,
                 "is_error": result.is_error,
+                "model_usage": result.model_usage,
             },
         )
+        if result.rate_limit_events:
+            _append_rate_limits(run_dir, result.rate_limit_events)
 
     return result
+
+
+def _append_rate_limits(run_dir: Path, events: list[dict[str, Any]]) -> None:
+    run_dir.mkdir(parents=True, exist_ok=True)
+    path = run_dir / "claude_rate_limits.jsonl"
+    with path.open("a") as f:
+        for e in events:
+            f.write(json.dumps(e) + "\n")
