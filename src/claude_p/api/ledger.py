@@ -3,7 +3,12 @@ from __future__ import annotations
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from claude_p.ledger import per_job_rollups, set_weekly_budget, weekly_budget, window_totals
+from claude_p.ledger import (
+    per_job_rollups,
+    set_weekly_budget,
+    weekly_budget,
+    window_totals,
+)
 
 router = APIRouter()
 

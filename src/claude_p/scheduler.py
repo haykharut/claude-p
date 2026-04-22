@@ -4,6 +4,7 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 
+from claude_p import queries
 from claude_p.config import Config
 from claude_p.db import connect
 from claude_p.executor import execute_run
@@ -31,20 +32,9 @@ class Scheduler:
                 pass
 
     async def _tick(self) -> None:
-        now = datetime.now(timezone.utc).isoformat()
-        due: list[str] = []
+        now = datetime.now(timezone.utc)
         with connect(self.cfg.db_path) as conn:
-            rows = conn.execute(
-                """
-                SELECT s.slug FROM schedules s
-                JOIN jobs_state j ON j.slug = s.slug
-                WHERE s.next_fire_at IS NOT NULL
-                  AND s.next_fire_at <= ?
-                  AND (j.disabled_reason IS NULL)
-                """,
-                (now,),
-            ).fetchall()
-            due = [r["slug"] for r in rows]
+            due = queries.due_job_slugs(conn, now)
 
         for slug in due:
             if slug in self._in_flight:
@@ -63,10 +53,7 @@ class Scheduler:
                 return None
             self._in_flight.add(slug)
         try:
-            run_id = await execute_run(
-                self.cfg, entry.manifest, entry.path, trigger=trigger
-            )
-            return run_id
+            return await execute_run(self.cfg, entry.manifest, entry.path, trigger=trigger)
         finally:
             self._in_flight.discard(slug)
 

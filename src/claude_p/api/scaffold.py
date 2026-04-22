@@ -6,12 +6,14 @@ import logging
 import re
 import uuid
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sse_starlette.sse import EventSourceResponse
 
+from claude_p import queries
 from claude_p.claude_runner import ClaudeResult, apply_event, build_claude_argv
 from claude_p.db import connect
 
@@ -24,6 +26,11 @@ SCAFFOLDER_PROMPT_PATH = Path(__file__).parent.parent.parent.parent / "scaffolde
 
 @dataclass
 class Scaffold:
+    """In-flight state for a single scaffold operation. Not persisted
+    between daemon restarts — if the process dies mid-scaffold, the
+    partial job folder stays on disk and is what the user sees.
+    """
+
     id: str
     slug: str
     job_dir: Path
@@ -70,16 +77,18 @@ async def scaffold_start(
     scaffold = Scaffold(id=scaffold_id, slug=slug, job_dir=job_dir, description=description)
     _scaffolds()[scaffold_id] = scaffold
 
-    from datetime import datetime, timezone
-
-    started = datetime.now(timezone.utc).isoformat()
+    started = datetime.now(timezone.utc)
     with connect(st.cfg.db_path) as conn:
-        conn.execute(
-            "INSERT INTO runs(id, job_slug, started_at, trigger, run_dir) VALUES(?,?,?,?,?)",
-            (scaffold_id, f"__scaffold__:{slug}", started, "scaffold", str(job_dir)),
+        queries.insert_run_pending(
+            conn,
+            run_id=scaffold_id,
+            job_slug=f"__scaffold__:{slug}",
+            started_at=started,
+            trigger="scaffold",
+            run_dir=job_dir,
         )
 
-    asyncio.create_task(_run_scaffold(st.cfg, scaffold, started))
+    asyncio.create_task(_run_scaffold(st.cfg, scaffold))
     return RedirectResponse(f"/scaffold/{scaffold_id}", status_code=303)
 
 
@@ -105,7 +114,12 @@ async def scaffold_stream(scaffold_id: str):
     async def gen():
         while True:
             if scaffold.done.is_set() and scaffold.queue.empty():
-                yield {"event": "end", "data": json.dumps({"exit_code": scaffold.exit_code, "error": scaffold.error})}
+                yield {
+                    "event": "end",
+                    "data": json.dumps(
+                        {"exit_code": scaffold.exit_code, "error": scaffold.error}
+                    ),
+                }
                 return
             try:
                 event = await asyncio.wait_for(scaffold.queue.get(), timeout=1.0)
@@ -118,15 +132,16 @@ async def scaffold_stream(scaffold_id: str):
 
 
 def _scaffolds() -> dict[str, Scaffold]:
-    # Module-level singleton; fine since app is single-process.
     if not hasattr(_scaffolds, "_store"):
         _scaffolds._store = {}
     return _scaffolds._store
 
 
-async def _run_scaffold(cfg, scaffold: Scaffold, started_at: str) -> None:
+async def _run_scaffold(cfg, scaffold: Scaffold) -> None:
     log.info("scaffolding %s in %s", scaffold.slug, scaffold.job_dir)
-    system_prompt = SCAFFOLDER_PROMPT_PATH.read_text() if SCAFFOLDER_PROMPT_PATH.exists() else ""
+    system_prompt = (
+        SCAFFOLDER_PROMPT_PATH.read_text() if SCAFFOLDER_PROMPT_PATH.exists() else ""
+    )
     prompt = (
         f"Your job folder is `{scaffold.job_dir}`. The slug is `{scaffold.slug}`.\n\n"
         f"User request:\n\n{scaffold.description}\n\n"
@@ -185,27 +200,19 @@ async def _run_scaffold(cfg, scaffold: Scaffold, started_at: str) -> None:
         scaffold.error = str(e)
         scaffold.exit_code = -1
     finally:
-        from datetime import datetime, timezone
-
-        ended = datetime.now(timezone.utc).isoformat()
+        ended = datetime.now(timezone.utc)
         r = scaffold.result
         with connect(cfg.db_path) as conn:
-            conn.execute(
-                """
-                UPDATE runs SET ended_at=?, exit_code=?, cost_usd=?, input_tokens=?,
-                    output_tokens=?, cache_read_tokens=?, cache_creation_tokens=?, error=?
-                WHERE id=?
-                """,
-                (
-                    ended,
-                    scaffold.exit_code,
-                    r.cost_usd,
-                    r.input_tokens,
-                    r.output_tokens,
-                    r.cache_read_tokens,
-                    r.cache_creation_tokens,
-                    scaffold.error,
-                    scaffold.id,
-                ),
+            queries.update_run_result(
+                conn,
+                run_id=scaffold.id,
+                ended_at=ended,
+                exit_code=scaffold.exit_code,
+                cost_usd=r.cost_usd,
+                input_tokens=r.input_tokens,
+                output_tokens=r.output_tokens,
+                cache_read_tokens=r.cache_read_tokens,
+                cache_creation_tokens=r.cache_creation_tokens,
+                error=scaffold.error,
             )
         scaffold.done.set()

@@ -5,7 +5,9 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 
+from claude_p import queries
 from claude_p.db import connect
+from claude_p.models import Run
 
 router = APIRouter()
 
@@ -14,10 +16,12 @@ def _state(request: Request):
     return request.app.state.claude_p
 
 
-def _run_row(db_path: Path, run_id: str) -> dict | None:
-    with connect(db_path) as conn:
-        r = conn.execute("SELECT * FROM runs WHERE id=?", (run_id,)).fetchone()
-        return dict(r) if r else None
+def _load_run(request: Request, run_id: str) -> Run:
+    with connect(_state(request).cfg.db_path) as conn:
+        run = queries.get_run(conn, run_id)
+    if run is None:
+        raise HTTPException(404, "run not found")
+    return run
 
 
 def _safe_file(base: Path, rel: str) -> Path:
@@ -30,10 +34,8 @@ def _safe_file(base: Path, rel: str) -> Path:
 @router.get("/runs/{run_id}", response_class=HTMLResponse)
 async def run_detail(run_id: str, request: Request):
     st = _state(request)
-    row = _run_row(st.cfg.db_path, run_id)
-    if not row:
-        raise HTTPException(404, "run not found")
-    run_dir = Path(row["run_dir"])
+    run = _load_run(request, run_id)
+    run_dir = Path(run.run_dir)
     stdout = (run_dir / "stdout.log").read_text() if (run_dir / "stdout.log").exists() else ""
     stderr = (run_dir / "stderr.log").read_text() if (run_dir / "stderr.log").exists() else ""
     trace_path = run_dir / "trace.jsonl"
@@ -48,7 +50,7 @@ async def run_detail(run_id: str, request: Request):
         request,
         "run_detail.html",
         {
-            "run": row,
+            "run": run,
             "stdout": stdout,
             "stderr": stderr,
             "trace": trace,
@@ -60,37 +62,31 @@ async def run_detail(run_id: str, request: Request):
 
 @router.get("/runs/{run_id}/stdout", response_class=PlainTextResponse)
 async def run_stdout(run_id: str, request: Request):
-    row = _run_row(_state(request).cfg.db_path, run_id)
-    if not row:
-        raise HTTPException(404)
-    p = Path(row["run_dir"]) / "stdout.log"
+    run = _load_run(request, run_id)
+    p = Path(run.run_dir) / "stdout.log"
     return PlainTextResponse(p.read_text() if p.exists() else "")
 
 
 @router.get("/runs/{run_id}/stderr", response_class=PlainTextResponse)
 async def run_stderr(run_id: str, request: Request):
-    row = _run_row(_state(request).cfg.db_path, run_id)
-    if not row:
-        raise HTTPException(404)
-    p = Path(row["run_dir"]) / "stderr.log"
+    run = _load_run(request, run_id)
+    p = Path(run.run_dir) / "stderr.log"
     return PlainTextResponse(p.read_text() if p.exists() else "")
 
 
 @router.get("/runs/{run_id}/trace", response_class=PlainTextResponse)
 async def run_trace(run_id: str, request: Request):
-    row = _run_row(_state(request).cfg.db_path, run_id)
-    if not row:
-        raise HTTPException(404)
-    p = Path(row["run_dir"]) / "trace.jsonl"
-    return PlainTextResponse(p.read_text() if p.exists() else "", media_type="application/x-ndjson")
+    run = _load_run(request, run_id)
+    p = Path(run.run_dir) / "trace.jsonl"
+    return PlainTextResponse(
+        p.read_text() if p.exists() else "", media_type="application/x-ndjson"
+    )
 
 
 @router.get("/runs/{run_id}/output/{rel:path}")
 async def run_output(run_id: str, rel: str, request: Request):
-    row = _run_row(_state(request).cfg.db_path, run_id)
-    if not row:
-        raise HTTPException(404)
-    output_root = Path(row["run_dir"]) / "output"
+    run = _load_run(request, run_id)
+    output_root = Path(run.run_dir) / "output"
     target = _safe_file(output_root, rel)
     if not target.is_file():
         raise HTTPException(404)

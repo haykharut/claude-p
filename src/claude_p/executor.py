@@ -7,20 +7,18 @@ import os
 import shlex
 import shutil
 import signal
-import sqlite3
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+from croniter import croniter
+
+from claude_p import queries
 from claude_p.config import Config
 from claude_p.db import connect
 from claude_p.manifest import Manifest
 
 log = logging.getLogger(__name__)
-
-
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
 
 
 def _encode_param(value) -> str:
@@ -58,16 +56,6 @@ def _build_env(
     return env
 
 
-async def _stream_to_file(stream: asyncio.StreamReader, path: Path) -> None:
-    with path.open("wb") as f:
-        while True:
-            chunk = await stream.read(4096)
-            if not chunk:
-                break
-            f.write(chunk)
-            f.flush()
-
-
 def _resolve_entrypoint(job_dir: Path, entrypoint: str) -> Path:
     p = (job_dir / entrypoint).resolve()
     if not str(p).startswith(str(job_dir.resolve()) + os.sep) and p != job_dir.resolve():
@@ -75,9 +63,9 @@ def _resolve_entrypoint(job_dir: Path, entrypoint: str) -> Path:
     return p
 
 
-def _aggregate_claude_calls(run_dir: Path) -> dict:
+def _aggregate_claude_calls(run_dir: Path) -> dict[str, float | int]:
     path = run_dir / "claude_calls.jsonl"
-    totals = {
+    totals: dict[str, float | int] = {
         "cost_usd": 0.0,
         "input_tokens": 0,
         "output_tokens": 0,
@@ -135,14 +123,15 @@ async def execute_run(
     workspace_dir = job_dir / "workspace"
     workspace_dir.mkdir(parents=True, exist_ok=True)
 
-    started = _now_iso()
+    started = datetime.now(timezone.utc)
     with connect(cfg.db_path) as conn:
-        conn.execute(
-            """
-            INSERT INTO runs(id, job_slug, started_at, trigger, run_dir)
-            VALUES(?,?,?,?,?)
-            """,
-            (run_id, manifest.name, started, trigger, str(run_dir)),
+        queries.insert_run_pending(
+            conn,
+            run_id=run_id,
+            job_slug=manifest.name,
+            started_at=started,
+            trigger=trigger,
+            run_dir=run_dir,
         )
 
     stdout_path = run_dir / "stdout.log"
@@ -153,9 +142,10 @@ async def execute_run(
 
     try:
         argv = _build_argv(cfg, manifest, job_dir)
-        env = _build_env(cfg, manifest, run_id, job_dir, workspace_dir, extra_params, secrets)
+        env = _build_env(
+            cfg, manifest, run_id, job_dir, workspace_dir, extra_params, secrets
+        )
 
-        # uv sync before execution if pyproject.toml exists and runtime=uv
         if manifest.runtime == "uv" and (job_dir / "pyproject.toml").exists():
             await _run_and_log(
                 [cfg.uv_cli, "sync", "--project", str(job_dir)],
@@ -184,7 +174,7 @@ async def execute_run(
         error = str(e)
         exit_code = -1
 
-    ended = _now_iso()
+    ended = datetime.now(timezone.utc)
     ledger = _aggregate_claude_calls(run_dir)
     copied_outputs: list[str] = []
     try:
@@ -197,8 +187,8 @@ async def execute_run(
             {
                 "run_id": run_id,
                 "job_slug": manifest.name,
-                "started_at": started,
-                "ended_at": ended,
+                "started_at": started.isoformat(),
+                "ended_at": ended.isoformat(),
                 "exit_code": exit_code,
                 "trigger": trigger,
                 "error": error,
@@ -210,40 +200,23 @@ async def execute_run(
     )
 
     with connect(cfg.db_path) as conn:
-        conn.execute(
-            """
-            UPDATE runs SET
-                ended_at=?, exit_code=?, cost_usd=?, input_tokens=?, output_tokens=?,
-                cache_read_tokens=?, cache_creation_tokens=?, error=?
-            WHERE id=?
-            """,
-            (
-                ended,
-                exit_code,
-                ledger["cost_usd"],
-                ledger["input_tokens"],
-                ledger["output_tokens"],
-                ledger["cache_read_tokens"],
-                ledger["cache_creation_tokens"],
-                error,
-                run_id,
-            ),
+        queries.update_run_result(
+            conn,
+            run_id=run_id,
+            ended_at=ended,
+            exit_code=exit_code,
+            cost_usd=float(ledger["cost_usd"]),
+            input_tokens=int(ledger["input_tokens"]),
+            output_tokens=int(ledger["output_tokens"]),
+            cache_read_tokens=int(ledger["cache_read_tokens"]),
+            cache_creation_tokens=int(ledger["cache_creation_tokens"]),
+            error=error,
         )
         if manifest.schedule:
-            _bump_schedule(conn, manifest.name, manifest.schedule)
+            next_fire = croniter(manifest.schedule, ended).get_next(datetime)
+            queries.bump_schedule(conn, manifest.name, ended, next_fire)
 
     return run_id
-
-
-def _bump_schedule(conn: sqlite3.Connection, slug: str, cron: str) -> None:
-    from croniter import croniter
-
-    now = datetime.now(timezone.utc)
-    next_fire = croniter(cron, now).get_next(datetime).isoformat()
-    conn.execute(
-        "UPDATE schedules SET last_fire_at=?, next_fire_at=? WHERE slug=?",
-        (now.isoformat(), next_fire, slug),
-    )
 
 
 def _build_argv(cfg: Config, manifest: Manifest, job_dir: Path) -> list[str]:

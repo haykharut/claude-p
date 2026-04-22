@@ -1,0 +1,263 @@
+"""
+Typed query helpers. Raw SQL in, Pydantic models out.
+
+Every function here takes a sqlite3.Connection and returns a model or list
+of models from `claude_p.models`. Callers stay in control of transaction
+boundaries — we don't commit, connect, or retry at this layer.
+"""
+
+from __future__ import annotations
+
+import sqlite3
+from datetime import datetime, timezone
+from pathlib import Path
+
+from claude_p.models import (
+    JobRollup,
+    JobState,
+    Run,
+    Schedule,
+    WEEKLY_BUDGET_SETTING,
+    WindowTotals,
+    as_job_state,
+    as_run,
+    as_schedule,
+)
+
+
+def get_run(conn: sqlite3.Connection, run_id: str) -> Run | None:
+    row = conn.execute("SELECT * FROM runs WHERE id=?", (run_id,)).fetchone()
+    return as_run(row) if row else None
+
+
+def list_runs_for_job(conn: sqlite3.Connection, slug: str, limit: int = 50) -> list[Run]:
+    rows = conn.execute(
+        "SELECT * FROM runs WHERE job_slug=? ORDER BY started_at DESC LIMIT ?",
+        (slug, limit),
+    ).fetchall()
+    return [as_run(r) for r in rows]
+
+
+def last_runs_by_slug(conn: sqlite3.Connection) -> dict[str, Run]:
+    """Latest run for each job_slug."""
+    rows = conn.execute(
+        """
+        SELECT r.* FROM runs r
+        JOIN (SELECT job_slug, MAX(started_at) AS ts FROM runs GROUP BY job_slug) m
+          ON m.job_slug = r.job_slug AND m.ts = r.started_at
+        """
+    ).fetchall()
+    return {r["job_slug"]: as_run(r) for r in rows}
+
+
+def list_job_states(conn: sqlite3.Connection) -> dict[str, JobState]:
+    return {
+        r["slug"]: as_job_state(r) for r in conn.execute("SELECT * FROM jobs_state").fetchall()
+    }
+
+
+def get_job_state(conn: sqlite3.Connection, slug: str) -> JobState | None:
+    row = conn.execute("SELECT * FROM jobs_state WHERE slug=?", (slug,)).fetchone()
+    return as_job_state(row) if row else None
+
+
+def list_schedules(conn: sqlite3.Connection) -> dict[str, Schedule]:
+    return {
+        r["slug"]: as_schedule(r)
+        for r in conn.execute("SELECT * FROM schedules").fetchall()
+    }
+
+
+def get_schedule(conn: sqlite3.Connection, slug: str) -> Schedule | None:
+    row = conn.execute("SELECT * FROM schedules WHERE slug=?", (slug,)).fetchone()
+    return as_schedule(row) if row else None
+
+
+def insert_run_pending(
+    conn: sqlite3.Connection,
+    *,
+    run_id: str,
+    job_slug: str,
+    started_at: datetime,
+    trigger: str,
+    run_dir: Path,
+) -> None:
+    conn.execute(
+        "INSERT INTO runs(id, job_slug, started_at, trigger, run_dir) VALUES(?,?,?,?,?)",
+        (run_id, job_slug, started_at.isoformat(), trigger, str(run_dir)),
+    )
+
+
+def update_run_result(
+    conn: sqlite3.Connection,
+    *,
+    run_id: str,
+    ended_at: datetime,
+    exit_code: int | None,
+    cost_usd: float,
+    input_tokens: int,
+    output_tokens: int,
+    cache_read_tokens: int,
+    cache_creation_tokens: int,
+    error: str | None,
+) -> None:
+    conn.execute(
+        """
+        UPDATE runs SET
+            ended_at=?, exit_code=?, cost_usd=?, input_tokens=?, output_tokens=?,
+            cache_read_tokens=?, cache_creation_tokens=?, error=?
+        WHERE id=?
+        """,
+        (
+            ended_at.isoformat(),
+            exit_code,
+            cost_usd,
+            input_tokens,
+            output_tokens,
+            cache_read_tokens,
+            cache_creation_tokens,
+            error,
+            run_id,
+        ),
+    )
+
+
+def bump_schedule(
+    conn: sqlite3.Connection, slug: str, last_fire_at: datetime, next_fire_at: datetime
+) -> None:
+    conn.execute(
+        "UPDATE schedules SET last_fire_at=?, next_fire_at=? WHERE slug=?",
+        (last_fire_at.isoformat(), next_fire_at.isoformat(), slug),
+    )
+
+
+def upsert_job_state(
+    conn: sqlite3.Connection,
+    *,
+    slug: str,
+    last_seen_at: datetime,
+    manifest_hash: str | None,
+    manifest_error: str | None,
+) -> None:
+    conn.execute(
+        """
+        INSERT INTO jobs_state(slug, last_seen_at, last_manifest_hash, manifest_error, disabled_reason)
+        VALUES(?,?,?,?,NULL)
+        ON CONFLICT(slug) DO UPDATE SET
+            last_seen_at       = excluded.last_seen_at,
+            last_manifest_hash = excluded.last_manifest_hash,
+            manifest_error     = excluded.manifest_error,
+            disabled_reason    = NULL
+        """,
+        (slug, last_seen_at.isoformat(), manifest_hash, manifest_error),
+    )
+
+
+def set_job_disabled(conn: sqlite3.Connection, slug: str, reason: str | None) -> None:
+    conn.execute("UPDATE jobs_state SET disabled_reason=? WHERE slug=?", (reason, slug))
+
+
+def delete_schedule(conn: sqlite3.Connection, slug: str) -> None:
+    conn.execute("DELETE FROM schedules WHERE slug=?", (slug,))
+
+
+def upsert_schedule(
+    conn: sqlite3.Connection, slug: str, cron: str, next_fire_at: datetime
+) -> None:
+    conn.execute(
+        """
+        INSERT INTO schedules(slug, cron, next_fire_at, last_fire_at)
+        VALUES(?,?,?,NULL)
+        ON CONFLICT(slug) DO UPDATE SET
+            cron         = excluded.cron,
+            next_fire_at = CASE
+                WHEN schedules.cron = excluded.cron THEN schedules.next_fire_at
+                ELSE excluded.next_fire_at
+            END
+        """,
+        (slug, cron, next_fire_at.isoformat()),
+    )
+
+
+def due_job_slugs(conn: sqlite3.Connection, now: datetime) -> list[str]:
+    rows = conn.execute(
+        """
+        SELECT s.slug FROM schedules s
+        JOIN jobs_state j ON j.slug = s.slug
+        WHERE s.next_fire_at IS NOT NULL
+          AND s.next_fire_at <= ?
+          AND j.disabled_reason IS NULL
+        """,
+        (now.isoformat(),),
+    ).fetchall()
+    return [r["slug"] for r in rows]
+
+
+# -- Ledger queries ---------------------------------------------------------
+
+
+def _window_start(hours: float) -> str:
+    from datetime import timedelta
+
+    return (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
+
+
+def window_totals(conn: sqlite3.Connection, hours: float) -> WindowTotals:
+    row = conn.execute(
+        """
+        SELECT
+            COALESCE(SUM(cost_usd),0)              AS cost_usd,
+            COALESCE(SUM(input_tokens),0)          AS input_tokens,
+            COALESCE(SUM(output_tokens),0)         AS output_tokens,
+            COALESCE(SUM(cache_read_tokens),0)     AS cache_read_tokens,
+            COALESCE(SUM(cache_creation_tokens),0) AS cache_creation_tokens,
+            COUNT(*)                               AS run_count
+        FROM runs
+        WHERE started_at >= ?
+        """,
+        (_window_start(hours),),
+    ).fetchone()
+    return WindowTotals.model_validate(dict(row))
+
+
+def per_job_rollups(conn: sqlite3.Connection) -> list[JobRollup]:
+    slugs = [r["slug"] for r in conn.execute("SELECT DISTINCT slug FROM jobs_state").fetchall()]
+    out: list[JobRollup] = []
+    for slug in slugs:
+        rows = conn.execute(
+            """
+            SELECT cost_usd, input_tokens, output_tokens, started_at
+            FROM runs WHERE job_slug=? ORDER BY started_at DESC LIMIT 10
+            """,
+            (slug,),
+        ).fetchall()
+        if not rows:
+            out.append(JobRollup(slug=slug))
+            continue
+        n = len(rows)
+        out.append(
+            JobRollup(
+                slug=slug,
+                runs_last_10=n,
+                avg_cost_usd=sum((r["cost_usd"] or 0) for r in rows) / n,
+                avg_input_tokens=sum((r["input_tokens"] or 0) for r in rows) / n,
+                avg_output_tokens=sum((r["output_tokens"] or 0) for r in rows) / n,
+                last_run_at=datetime.fromisoformat(rows[0]["started_at"]),
+            )
+        )
+    return out
+
+
+def get_weekly_budget(conn: sqlite3.Connection) -> float:
+    row = conn.execute(
+        "SELECT value FROM settings WHERE key=?", (WEEKLY_BUDGET_SETTING,)
+    ).fetchone()
+    return float(row["value"]) if row else 0.0
+
+
+def set_weekly_budget(conn: sqlite3.Connection, amount: float) -> None:
+    conn.execute(
+        "INSERT INTO settings(key,value) VALUES(?, ?) "
+        "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+        (WEEKLY_BUDGET_SETTING, str(amount)),
+    )
