@@ -168,6 +168,40 @@ def as_rate_limit_snapshot(row) -> RateLimitSnapshot:
     return RateLimitSnapshot.model_validate(d)
 
 
+class ClaudeAiUsageWindow(BaseModel):
+    """One window-keyed row from claude_ai_usage (excluding __extra_usage__)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    window_key: str
+    utilization: float | None = None
+    resets_at: datetime | None = None
+    observed_at: datetime
+
+
+class ClaudeAiExtraUsage(BaseModel):
+    """The __extra_usage__ singleton — credit-pool data for subscriptions
+    that have extra-usage enabled (e.g. the Max plan's credit top-up)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    is_enabled: bool = False
+    monthly_limit: int | None = None
+    used_credits: float | None = None
+    utilization: float | None = None
+    currency: str | None = None
+    observed_at: datetime
+
+
+# Settings keys for claude.ai integration (stored in the `settings` table).
+CLAUDE_AI_SESSION_KEY_SETTING: str = "claude_ai_session_key"
+CLAUDE_AI_ORG_ID_SETTING: str = "claude_ai_org_id"
+CLAUDE_AI_CF_CLEARANCE_SETTING: str = "claude_ai_cf_clearance"
+CLAUDE_AI_ENABLED_SETTING: str = "claude_ai_enabled"
+CLAUDE_AI_LAST_ERROR_SETTING: str = "claude_ai_last_error"
+CLAUDE_AI_LAST_OK_AT_SETTING: str = "claude_ai_last_ok_at"
+
+
 WEEKLY_BUDGET_SETTING: str = "weekly_budget_usd"
 DASHBOARD_PASSWORD_SETTING: str = "dashboard_password_hash"
 

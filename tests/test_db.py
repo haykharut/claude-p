@@ -18,7 +18,7 @@ def test_init_db_applies_all_migrations(tmp_path: Path):
     p = tmp_path / "x.db"
     applied = db.init_db(p)
     # When new migrations land, extend this list.
-    assert applied == [1, 2]
+    assert applied == [1, 2, 3]
     t = _tables(p)
     for name in (
         "runs",
@@ -29,6 +29,7 @@ def test_init_db_applies_all_migrations(tmp_path: Path):
         "schema_migrations",
         "rate_limit_snapshots",
         "run_model_usage",
+        "claude_ai_usage",
     ):
         assert name in t
 

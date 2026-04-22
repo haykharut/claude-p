@@ -26,7 +26,51 @@
   <code>rate_limit_event</code> claude emits on every invocation.
 </p>
 
-<h2>Subscription rate limits</h2>
+{% if claude_ai_enabled %}
+<h2>Subscription usage <span class="badge warn">claude.ai (experimental)</span></h2>
+{% if claude_ai_windows or claude_ai_extra %}
+<div class="grid grid-3">
+  {% for w in claude_ai_windows %}
+  <div class="card">
+    <label>{{ w.window_key|replace('_', ' ')|title }}</label>
+    <div class="big-number mono">{{ "%.1f"|format(w.utilization or 0) }}%</div>
+    {% if w.utilization is not none %}
+    <div class="progress {% if (w.utilization or 0) > 90 %}over{% endif %}">
+      <span style="width: {{ [(w.utilization or 0), 100]|min }}%"></span>
+    </div>
+    {% endif %}
+    <div class="muted mono" style="font-size: 0.8rem; margin-top: 0.25rem">
+      resets {{ humandelta(w.resets_at, now)|trim }}
+    </div>
+  </div>
+  {% endfor %}
+  {% if claude_ai_extra and claude_ai_extra.is_enabled %}
+  <div class="card">
+    <label>Extra usage credits</label>
+    <div class="big-number mono">
+      {% if claude_ai_extra.utilization is not none %}{{ "%.2f"|format(claude_ai_extra.utilization) }}%{% else %}—{% endif %}
+    </div>
+    {% if claude_ai_extra.utilization is not none %}
+    <div class="progress {% if claude_ai_extra.utilization > 90 %}over{% endif %}">
+      <span style="width: {{ [claude_ai_extra.utilization, 100]|min }}%"></span>
+    </div>
+    {% endif %}
+    <div class="muted mono" style="font-size: 0.8rem; margin-top: 0.25rem">
+      {{ claude_ai_extra.used_credits or 0 }} / {{ claude_ai_extra.monthly_limit or 0 }}
+      {{ claude_ai_extra.currency or '' }}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% else %}
+<div class="card muted">
+  claude.ai poller is enabled but hasn't succeeded yet — check
+  <a href="/settings">settings</a> for the latest error.
+</div>
+{% endif %}
+{% endif %}
+
+<h2>Rate limit events <span class="muted" style="font-size: 0.8rem">(from <code>claude -p</code> stream)</span></h2>
 {% if rate_limits %}
 <div class="grid grid-2">
   {% for rl in rate_limits %}

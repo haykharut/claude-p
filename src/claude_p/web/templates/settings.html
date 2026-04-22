@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Settings — claude-p{% endblock %}
+{% block main %}
+<h1>Settings</h1>
+
+<h2>claude.ai usage integration <span class="badge warn">experimental</span></h2>
+<p class="muted">
+  The <code>rate_limit_event</code> surfaced in the ledger is a free signal from
+  <code>claude -p</code>. It tells you when windows reset but not how much you've burned.
+  For actual <strong>% utilization</strong>, claude-p can poll the (undocumented)
+  <code>claude.ai/api/organizations/&lt;org&gt;/usage</code> endpoint on your behalf.
+  This requires you to paste your live <code>sessionKey</code> cookie. <strong>Anthropic
+  can break or remove this endpoint at any time</strong> — consider it best-effort.
+</p>
+
+<form method="post" action="/settings/claude-ai" class="spaced">
+  <div class="form-row">
+    <label for="org_id">Organization ID</label>
+    <input id="org_id" name="org_id" type="text" value="{{ org_id }}"
+           placeholder="7c1bacad-ff70-4995-9ce4-c0781218348e" />
+    <div class="muted" style="font-size: 0.8rem; margin-top: 0.25rem">
+      Visit <code>claude.ai/settings/usage</code> in your browser. The UUID in the URL of the
+      <code>/api/organizations/&lt;this&gt;/usage</code> request (DevTools → Network) is your org ID.
+    </div>
+  </div>
+  <div class="form-row">
+    <label for="session_key">
+      Session cookie <span class="muted">(currently: {{ session_key_masked or 'not set' }})</span>
+    </label>
+    <input id="session_key" name="session_key" type="password" autocomplete="off"
+           placeholder="sk-ant-sid02-...  (leave blank to keep existing)" />
+    <div class="muted" style="font-size: 0.8rem; margin-top: 0.25rem">
+      Copy the value of the <code>sessionKey</code> cookie from your claude.ai browser
+      session. Stored in SQLite; rotated when you log out of claude.ai.
+    </div>
+  </div>
+  <div class="form-row">
+    <label for="cf_clearance">
+      <code>cf_clearance</code> cookie <span class="muted">(optional — {{ cf_clearance_masked or 'not set' }})</span>
+    </label>
+    <input id="cf_clearance" name="cf_clearance" type="password" autocomplete="off"
+           placeholder="(usually not needed for API calls)" />
+    <div class="muted" style="font-size: 0.8rem; margin-top: 0.25rem">
+      Only set this if you see 403 errors. Cloudflare rotates it ~hourly,
+      so the integration will break until you paste a fresh one.
+    </div>
+  </div>
+  <div class="form-row">
+    <label>
+      <input type="checkbox" name="enabled" {% if enabled %}checked{% endif %} />
+      Enable polling (every 5 min)
+    </label>
+  </div>
+  <div class="flex-row">
+    <button type="submit" class="primary">Save</button>
+    <button type="submit" form="clear-form" class="danger">Clear credentials</button>
+  </div>
+</form>
+<form id="clear-form" method="post" action="/settings/claude-ai/clear" style="display:none"></form>
+
+{% if last_ok_at %}
+<div class="card">
+  <span class="badge ok">connected</span> · last successful poll at
+  <code>{{ last_ok_at }}</code>
+</div>
+{% endif %}
+{% if last_error %}
+<div class="card err">
+  <span class="badge err">last error</span>
+  <pre class="err">{{ last_error }}</pre>
+</div>
+{% endif %}
+{% endblock %}

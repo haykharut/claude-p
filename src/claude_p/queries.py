@@ -13,6 +13,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from claude_p.models import (
+    ClaudeAiExtraUsage,
+    ClaudeAiUsageWindow,
     JobRollup,
     JobState,
     ModelUsage,
@@ -373,3 +375,103 @@ def model_usage_window(conn: sqlite3.Connection, hours: float) -> list[ModelUsag
         (start,),
     ).fetchall()
     return [ModelUsage.model_validate(dict(r)) for r in rows]
+
+
+# -- claude.ai usage -------------------------------------------------------
+
+
+def upsert_claude_ai_window(
+    conn: sqlite3.Connection,
+    *,
+    window_key: str,
+    utilization: float | None,
+    resets_at: datetime | None,
+    observed_at: datetime,
+    raw_json: str,
+) -> None:
+    conn.execute(
+        """
+        INSERT INTO claude_ai_usage(
+            window_key, utilization, resets_at, raw_json, observed_at
+        ) VALUES(?,?,?,?,?)
+        ON CONFLICT(window_key) DO UPDATE SET
+            utilization = excluded.utilization,
+            resets_at   = excluded.resets_at,
+            raw_json    = excluded.raw_json,
+            observed_at = excluded.observed_at
+        """,
+        (
+            window_key,
+            utilization,
+            resets_at.isoformat() if resets_at else None,
+            raw_json,
+            observed_at.isoformat(),
+        ),
+    )
+
+
+def upsert_claude_ai_extra_usage(
+    conn: sqlite3.Connection,
+    *,
+    observed_at: datetime,
+    is_enabled: bool,
+    monthly_limit: int | None,
+    used_credits: float | None,
+    utilization: float | None,
+    currency: str | None,
+    raw_json: str,
+) -> None:
+    from claude_p.claude_ai import EXTRA_USAGE_KEY
+
+    conn.execute(
+        """
+        INSERT INTO claude_ai_usage(
+            window_key, utilization, monthly_limit, used_credits,
+            currency, is_enabled, raw_json, observed_at
+        ) VALUES(?,?,?,?,?,?,?,?)
+        ON CONFLICT(window_key) DO UPDATE SET
+            utilization   = excluded.utilization,
+            monthly_limit = excluded.monthly_limit,
+            used_credits  = excluded.used_credits,
+            currency      = excluded.currency,
+            is_enabled    = excluded.is_enabled,
+            raw_json      = excluded.raw_json,
+            observed_at   = excluded.observed_at
+        """,
+        (
+            EXTRA_USAGE_KEY,
+            utilization,
+            monthly_limit,
+            used_credits,
+            currency,
+            1 if is_enabled else 0,
+            raw_json,
+            observed_at.isoformat(),
+        ),
+    )
+
+
+def list_claude_ai_windows(conn: sqlite3.Connection) -> list[ClaudeAiUsageWindow]:
+    from claude_p.claude_ai import EXTRA_USAGE_KEY
+
+    rows = conn.execute(
+        "SELECT window_key, utilization, resets_at, observed_at FROM claude_ai_usage "
+        "WHERE window_key != ? ORDER BY window_key",
+        (EXTRA_USAGE_KEY,),
+    ).fetchall()
+    return [ClaudeAiUsageWindow.model_validate(dict(r)) for r in rows]
+
+
+def get_claude_ai_extra_usage(conn: sqlite3.Connection) -> ClaudeAiExtraUsage | None:
+    from claude_p.claude_ai import EXTRA_USAGE_KEY
+
+    row = conn.execute(
+        "SELECT is_enabled, monthly_limit, used_credits, utilization, currency, observed_at "
+        "FROM claude_ai_usage WHERE window_key=?",
+        (EXTRA_USAGE_KEY,),
+    ).fetchone()
+    if row is None:
+        return None
+    d = dict(row)
+    d["is_enabled"] = bool(d["is_enabled"]) if d["is_enabled"] is not None else False
+    return ClaudeAiExtraUsage.model_validate(d)

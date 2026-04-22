@@ -19,6 +19,8 @@ from claude_p.ledger import (
     weekly_budget,
     window_totals,
 )
+from claude_p.models import CLAUDE_AI_ENABLED_SETTING
+from claude_p.db import get_setting
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -28,6 +30,12 @@ router = APIRouter()
 async def ledger_page(request: Request):
     st = request.app.state.claude_p
     snapshots = rate_limit_snapshots(st.cfg.db_path)
+    with connect(st.cfg.db_path) as conn:
+        claude_ai_enabled = get_setting(conn, CLAUDE_AI_ENABLED_SETTING) == "1"
+        claude_ai_windows = queries.list_claude_ai_windows(conn) if claude_ai_enabled else []
+        claude_ai_extra = (
+            queries.get_claude_ai_extra_usage(conn) if claude_ai_enabled else None
+        )
     return st.templates.TemplateResponse(
         request,
         "ledger.html",
@@ -39,6 +47,9 @@ async def ledger_page(request: Request):
             "model_usage_7d": model_usage_window(st.cfg.db_path, 24 * 7),
             "budget": weekly_budget(st.cfg.db_path),
             "rate_limits": snapshots,
+            "claude_ai_enabled": claude_ai_enabled,
+            "claude_ai_windows": claude_ai_windows,
+            "claude_ai_extra": claude_ai_extra,
             "now": datetime.now(timezone.utc),
             "active": "ledger",
         },

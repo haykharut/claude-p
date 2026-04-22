@@ -39,18 +39,25 @@ def build_app(cfg: Config | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        from claude_p import claude_ai
+
         stop = asyncio.Event()
         registry.scan()
         reg_task = asyncio.create_task(registry.run(stop), name="registry-watcher")
         sched_task = asyncio.create_task(scheduler.run(stop), name="scheduler")
+        claude_ai_task = asyncio.create_task(
+            claude_ai.poller(cfg, stop), name="claude-ai-poller"
+        )
         log.info("claude-p daemon started (data_dir=%s)", cfg.data_dir)
         try:
             yield
         finally:
             stop.set()
-            for t in (reg_task, sched_task):
+            for t in (reg_task, sched_task, claude_ai_task):
                 t.cancel()
-            await asyncio.gather(reg_task, sched_task, return_exceptions=True)
+            await asyncio.gather(
+                reg_task, sched_task, claude_ai_task, return_exceptions=True
+            )
             log.info("claude-p daemon stopped")
 
     app = FastAPI(title="claude-p", lifespan=lifespan)
@@ -67,12 +74,19 @@ def build_app(cfg: Config | None = None) -> FastAPI:
     mount_webdav(app, cfg)
 
     # Routes
-    from claude_p.api import jobs, ledger as ledger_api, runs, scaffold  # noqa: E402
+    from claude_p.api import (  # noqa: E402
+        jobs,
+        ledger as ledger_api,
+        runs,
+        scaffold,
+        settings as settings_api,
+    )
 
     app.include_router(jobs.router)
     app.include_router(runs.router)
     app.include_router(ledger_api.router)
     app.include_router(scaffold.router)
+    app.include_router(settings_api.router)
 
     app.add_middleware(BasicAuthMiddleware, db_path=cfg.db_path)
     return app

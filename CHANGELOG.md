@@ -34,6 +34,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   next to `claude_calls.jsonl` when invoked inside a job so the
   executor can aggregate both.
 
+### Added (claude.ai scrape, experimental)
+- Opt-in `/settings` page to paste `sessionKey` + `org_id` (and
+  optional `cf_clearance`) cookies from claude.ai. A background
+  poller hits `claude.ai/api/organizations/<org>/usage` every 5
+  minutes and stores each window's utilization %.
+- `/ledger` shows a "Subscription usage" section with actual %
+  utilization bars for `five_hour`, `seven_day`,
+  `seven_day_sonnet`, `seven_day_omelette`, and extra-usage
+  credits (Euro/USD amounts) when the integration is enabled.
+- Migration `003_claude_ai_usage.sql` adds the `claude_ai_usage`
+  table.
+- `ClaudeAiUsageWindow` and `ClaudeAiExtraUsage` models; module
+  `claude_ai.py` owns the scraper, cleanly isolated so we know
+  where to look when Anthropic changes the endpoint.
+- Tests for the persistence logic (no real network).
+
+### Security notes
+- `sessionKey` and `cf_clearance` are stored in the `settings`
+  table unencrypted — same threat model as the rest of the
+  SQLite DB. Set your `~/claudectl/` to 0700 if you're paranoid.
+  The dashboard masks both when reflecting them in the UI.
+- This endpoint is undocumented; Anthropic can disable or change
+  it without notice. The integration is labelled **experimental**
+  throughout.
+
 ## [0.1.0] - 2026-04-22
 
 First working cut. Dogfooded end-to-end on macOS: folder-as-registry, `uv`
