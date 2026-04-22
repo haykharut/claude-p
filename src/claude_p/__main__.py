@@ -34,6 +34,28 @@ def cmd_serve(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_dev(args: argparse.Namespace) -> int:
+    """Dev mode: uvicorn with --reload watching src/. Same port as `serve`."""
+    import uvicorn
+    from pathlib import Path
+
+    cfg = get_config()
+    cfg.ensure_dirs()
+    init_db(cfg.db_path)
+    src_dir = Path(__file__).parent
+    uvicorn.run(
+        "claude_p.api:build_app",
+        factory=True,
+        host=cfg.bind_host,
+        port=cfg.bind_port,
+        reload=True,
+        reload_dirs=[str(src_dir)],
+        reload_includes=["*.py", "*.html", "*.css"],
+        log_level="info",
+    )
+    return 0
+
+
 def cmd_db_init(args: argparse.Namespace) -> int:
     cfg = get_config()
     cfg.ensure_dirs()
@@ -131,6 +153,9 @@ def main() -> int:
 
     sp = sub.add_parser("serve", help="Start the dashboard + scheduler daemon")
     sp.set_defaults(func=cmd_serve)
+
+    sp = sub.add_parser("dev", help="Like `serve` but with uvicorn --reload")
+    sp.set_defaults(func=cmd_dev)
 
     sp = sub.add_parser("db-init", help="Initialize the SQLite DB and filesystem layout")
     sp.set_defaults(func=cmd_db_init)

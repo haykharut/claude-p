@@ -8,8 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `claude-p dev` subcommand — same as `serve` but with uvicorn
+  `--reload` watching `src/claude_p/` for `.py`/`.html`/`.css`
+  changes. Templates also hot-reload via Jinja's mtime check.
 - `CHANGELOG.md` (this file) and `CLAUDE.md` with project conventions for
   contributors (human and AI).
+
+### Changed
+- `/settings` save now **synchronously** runs one probe against the
+  claude.ai endpoint so the user sees `connected` / `probe failed`
+  immediately instead of having to wait for the next poll tick.
+- `cf_clearance` field removed from the settings UI — the endpoint
+  works with just `sessionKey`, and the CF cookie rotates too fast to
+  be worth managing.
+
+### Removed
+- Weekly-budget form on `/ledger` and the progress bar it fed. It was
+  self-declared, un-enforced, and added visual noise.
 - Rate-limit visibility on the ledger page. `claude -p` emits a
   `rate_limit_event` with the 5-hour (and weekly, when present) window's
   reset time and overage status; we now capture those, persist the

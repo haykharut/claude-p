@@ -31,7 +31,6 @@ from claude_p import queries
 from claude_p.config import Config
 from claude_p.db import connect, get_setting, set_setting
 from claude_p.models import (
-    CLAUDE_AI_CF_CLEARANCE_SETTING,
     CLAUDE_AI_ENABLED_SETTING,
     CLAUDE_AI_LAST_ERROR_SETTING,
     CLAUDE_AI_LAST_OK_AT_SETTING,
@@ -54,7 +53,7 @@ class ClaudeAiFetchError(Exception):
 
 
 async def fetch_usage(
-    *, session_key: str, org_id: str, cf_clearance: str | None = None, timeout: float = 15.0
+    *, session_key: str, org_id: str, timeout: float = 15.0
 ) -> dict[str, Any]:
     """Hit /api/organizations/<org>/usage and return the parsed JSON.
 
@@ -63,8 +62,6 @@ async def fetch_usage(
     """
     url = f"https://claude.ai/api/organizations/{org_id}/usage"
     cookies = {"sessionKey": session_key}
-    if cf_clearance:
-        cookies["cf_clearance"] = cf_clearance
     headers = {
         "accept": "*/*",
         "referer": "https://claude.ai/settings/usage",
@@ -142,13 +139,10 @@ async def poll_once(cfg: Config) -> None:
         enabled = get_setting(conn, CLAUDE_AI_ENABLED_SETTING) == "1"
         session_key = get_setting(conn, CLAUDE_AI_SESSION_KEY_SETTING)
         org_id = get_setting(conn, CLAUDE_AI_ORG_ID_SETTING)
-        cf_clearance = get_setting(conn, CLAUDE_AI_CF_CLEARANCE_SETTING)
     if not enabled or not session_key or not org_id:
         return
     try:
-        payload = await fetch_usage(
-            session_key=session_key, org_id=org_id, cf_clearance=cf_clearance or None
-        )
+        payload = await fetch_usage(session_key=session_key, org_id=org_id)
     except ClaudeAiAuthError as e:
         log.warning("claude.ai usage: auth error: %s", e)
         with connect(cfg.db_path) as conn:

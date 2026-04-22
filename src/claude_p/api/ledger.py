@@ -5,7 +5,7 @@ import logging
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Form, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from claude_p import queries
@@ -15,8 +15,6 @@ from claude_p.ledger import (
     model_usage_window,
     per_job_rollups,
     rate_limit_snapshots,
-    set_weekly_budget,
-    weekly_budget,
     window_totals,
 )
 from claude_p.models import CLAUDE_AI_ENABLED_SETTING
@@ -45,7 +43,6 @@ async def ledger_page(request: Request):
             "w7d": window_totals(st.cfg.db_path, 24 * 7),
             "rollups": sorted(per_job_rollups(st.cfg.db_path), key=lambda r: r.slug),
             "model_usage_7d": model_usage_window(st.cfg.db_path, 24 * 7),
-            "budget": weekly_budget(st.cfg.db_path),
             "rate_limits": snapshots,
             "claude_ai_enabled": claude_ai_enabled,
             "claude_ai_windows": claude_ai_windows,
@@ -54,13 +51,6 @@ async def ledger_page(request: Request):
             "active": "ledger",
         },
     )
-
-
-@router.post("/ledger/budget")
-async def ledger_set_budget(request: Request, amount: float = Form(...)):
-    st = request.app.state.claude_p
-    set_weekly_budget(st.cfg.db_path, amount)
-    return RedirectResponse("/ledger", status_code=303)
 
 
 @router.post("/ledger/probe")

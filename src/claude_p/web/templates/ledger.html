@@ -125,22 +125,8 @@
     <label>Last 7 days</label>
     <div class="big-number mono">${{ "%.4f"|format(w7d.cost_usd) }}</div>
     <div class="muted mono">{{ w7d.run_count }} runs · {{ w7d.input_tokens }} in / {{ w7d.output_tokens }} out</div>
-    {% if budget > 0 %}
-      {% set frac = (w7d.cost_usd / budget) if budget > 0 else 0 %}
-      <div class="progress {% if frac > 1 %}over{% endif %}">
-        <span style="width: {{ [frac * 100, 100]|min }}%"></span>
-      </div>
-      <div class="muted mono">{{ "%.1f"|format(frac * 100) }}% of ${{ "%.2f"|format(budget) }} weekly budget</div>
-    {% endif %}
   </div>
 </div>
-
-<h2>Weekly budget</h2>
-<form method="post" action="/ledger/budget" class="flex-row">
-  <input type="number" name="amount" step="0.01" min="0" value="{{ "%.2f"|format(budget) }}" style="max-width: 10rem" />
-  <button class="primary">Save</button>
-  <span class="muted">USD, self-declared. Used for the progress bar only — no enforcement.</span>
-</form>
 
 <h2>By model (last 7 days)</h2>
 {% if model_usage_7d %}
