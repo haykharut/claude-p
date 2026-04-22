@@ -1,44 +1,37 @@
 {% extends "base.html" %}
 {% block title %}Run {{ run.id[:8] }} — claude-p{% endblock %}
 {% block main %}
-<h1>Run <span class="mono">{{ run.id[:8] }}</span></h1>
-<p class="muted">
-  <a href="/jobs/{{ run.job_slug }}" class="mono">{{ run.job_slug }}</a> ·
-  trigger: <code>{{ run.trigger }}</code> ·
-  started: <code>{{ run.started_at }}</code> ·
-  ended: <code>{{ run.ended_at or '—' }}</code>
-</p>
+<div class="crumb">
+  <a href="/">Jobs</a>
+  <span class="sep">›</span>
+  <a href="/jobs/{{ run.job_slug }}" class="mono">{{ run.job_slug }}</a>
+  <span class="sep">›</span>
+  <span class="mono">{{ run.id[:8] }}</span>
+</div>
 
-<div class="grid grid-3">
-  <div class="card">
-    <label>Exit code</label>
-    <div class="big-number
-      {% if run.exit_code == 0 %}ok
-      {% elif run.exit_code is none %}warn
-      {% else %}err{% endif %}">{{ run.exit_code if run.exit_code is not none else '…' }}</div>
-  </div>
-  <div class="card">
-    <label>Cost</label>
-    <div class="big-number mono">${{ "%.4f"|format(run.cost_usd or 0) }}</div>
-    <div class="muted mono">
-      {{ run.input_tokens or 0 }} in / {{ run.output_tokens or 0 }} out
-      {% if run.cache_read_tokens %} · cache read {{ run.cache_read_tokens }}{% endif %}
-    </div>
-  </div>
-  <div class="card">
-    <label>Run directory</label>
-    <div class="mono" style="word-break: break-all">{{ run.run_dir }}</div>
-  </div>
+<div class="row-between">
+  <h1>Run <span class="mono">{{ run.id[:8] }}</span></h1>
+  {% if run.exit_code == 0 %}<span class="chip ok">ok</span>
+  {% elif run.exit_code is none %}<span class="chip">running</span>
+  {% else %}<span class="chip err">exit {{ run.exit_code }}</span>{% endif %}
+</div>
+
+<div class="meta" style="margin-top: 0.5rem">
+  <span><em>trigger</em><strong>{{ run.trigger }}</strong></span>
+  <span><em>started</em>{{ run.started_at }}</span>
+  <span><em>ended</em>{{ run.ended_at or '—' }}</span>
+  <span><em>cost</em><strong>${{ "%.4f"|format(run.cost_usd or 0) }}</strong></span>
+  <span><em>tokens</em>{{ run.input_tokens or 0 }} in · {{ run.output_tokens or 0 }} out</span>
 </div>
 
 {% if run.error %}
-<h2 class="err">Error</h2>
+<h2>Error</h2>
 <pre class="err">{{ run.error }}</pre>
 {% endif %}
 
 {% if outputs %}
 <h2>Outputs</h2>
-<ul>
+<ul style="padding-left: 1rem">
   {% for o in outputs %}
   <li><a href="/runs/{{ run.id }}/output/{{ o }}" class="mono">{{ o }}</a></li>
   {% endfor %}
@@ -54,7 +47,7 @@
 {% endif %}
 
 {% if trace %}
-<h2>Trace (stream-json)</h2>
-<pre style="max-height: 30rem">{{ trace }}</pre>
+<h2>Trace</h2>
+<pre>{{ trace }}</pre>
 {% endif %}
 {% endblock %}

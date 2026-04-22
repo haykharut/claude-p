@@ -3,56 +3,42 @@
 {% block main %}
 <h1>Settings</h1>
 
-<h2>claude.ai usage integration <span class="badge warn">experimental</span></h2>
-<p class="muted">
-  For actual <strong>% utilization</strong> (the thing <code>claude /usage</code>
-  shows in the CLI), claude-p can poll the undocumented
-  <code>claude.ai/api/organizations/&lt;org&gt;/usage</code> endpoint on your
-  behalf. Saving below runs one probe immediately so you know if the
-  credentials are good.
-</p>
+<h2>claude.ai integration</h2>
 
 {% if last_ok_at and not last_error %}
-<div class="card">
-  <span class="badge ok">connected</span> · last successful probe at
-  <code>{{ last_ok_at }}</code> · poller runs every 5&nbsp;min
+<div class="status ok" style="margin-bottom: 1rem">
+  <span class="dot"></span>connected · last probe <code>{{ last_ok_at }}</code>
 </div>
 {% elif last_error %}
-<div class="card err">
-  <span class="badge err">probe failed</span>
-  <pre class="err">{{ last_error }}</pre>
-  <div class="muted" style="font-size: 0.85rem; margin-top: 0.4rem">
-    Double-check the <code>sessionKey</code> and <code>org_id</code>.
-    In your browser: DevTools → Application → Cookies → <code>sessionKey</code>
-    for the cookie; the org UUID is in the URL of the
-    <code>/api/organizations/&lt;uuid&gt;/usage</code> request on
-    <code>claude.ai/settings/usage</code>.
-  </div>
-</div>
+<div class="status err" style="margin-bottom: 0.5rem"><span class="dot"></span>probe failed</div>
+<pre class="err" style="margin-bottom: 1rem">{{ last_error }}</pre>
+{% else %}
+<div class="status" style="margin-bottom: 1rem"><span class="dot"></span>not configured</div>
 {% endif %}
 
-<form method="post" action="/settings/claude-ai" class="spaced">
-  <div class="form-row">
+<form method="post" action="/settings/claude-ai" class="spaced" style="max-width: 640px">
+  <div class="field">
     <label for="org_id">Organization ID</label>
     <input id="org_id" name="org_id" type="text" value="{{ org_id }}"
-           placeholder="7c1bacad-ff70-4995-9ce4-c0781218348e" />
+           placeholder="uuid from claude.ai/settings/usage" />
   </div>
-  <div class="form-row">
+  <div class="field">
     <label for="session_key">
-      Session cookie <span class="muted">(currently: {{ session_key_masked or 'not set' }})</span>
+      <code>sessionKey</code> cookie
+      {% if session_key_masked %}<span class="dim small">— current: {{ session_key_masked }}</span>{% endif %}
     </label>
     <input id="session_key" name="session_key" type="password" autocomplete="off"
-           placeholder="sk-ant-sid02-...  (leave blank to keep existing)" />
+           placeholder="sk-ant-sid02-…" />
   </div>
-  <div class="form-row">
-    <label>
+  <div class="field">
+    <label class="checkbox">
       <input type="checkbox" name="enabled" {% if enabled %}checked{% endif %} />
-      Enable polling (every 5 min)
+      Poll every 5 min
     </label>
   </div>
-  <div class="flex-row">
+  <div class="row">
     <button type="submit" class="primary">Save &amp; probe</button>
-    <button type="submit" form="clear-form" class="danger">Clear credentials</button>
+    <button type="submit" form="clear-form" class="danger">Clear</button>
   </div>
 </form>
 <form id="clear-form" method="post" action="/settings/claude-ai/clear" style="display:none"></form>

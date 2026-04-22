@@ -19,155 +19,76 @@
 
 {% block main %}
 <h1>Ledger</h1>
-<p class="muted">
-  Per-claude-p accounting. Anthropic doesn't expose a programmatic
-  <code>/usage</code> endpoint, so the totals below reflect only what
-  <em>this daemon</em> has spent. Rate-limit state comes from the
-  <code>rate_limit_event</code> claude emits on every invocation.
-</p>
 
 {% if claude_ai_enabled %}
-<h2>Subscription usage <span class="badge warn">claude.ai (experimental)</span></h2>
-{% if claude_ai_windows or claude_ai_extra %}
-<div class="grid grid-3">
-  {% for w in claude_ai_windows %}
+{% set shown = claude_ai_windows | selectattr('window_key', 'in', ('five_hour', 'seven_day')) | list %}
+<h2>Subscription</h2>
+{% if shown %}
+<div class="grid grid-2">
+  {% for w in shown %}
   <div class="card">
-    <label>{{ w.window_key|replace('_', ' ')|title }}</label>
-    <div class="big-number mono">{{ "%.1f"|format(w.utilization or 0) }}%</div>
+    <div class="metric-label">{{ w.window_key|replace('_', ' ') }}</div>
+    <div class="metric">{{ "%.1f"|format(w.utilization or 0) }}%</div>
     {% if w.utilization is not none %}
-    <div class="progress {% if (w.utilization or 0) > 90 %}over{% endif %}">
+    <div class="progress {% if (w.utilization or 0) > 90 %}over{% elif (w.utilization or 0) > 75 %}warn{% endif %}">
       <span style="width: {{ [(w.utilization or 0), 100]|min }}%"></span>
     </div>
     {% endif %}
-    <div class="muted mono" style="font-size: 0.8rem; margin-top: 0.25rem">
-      resets {{ humandelta(w.resets_at, now)|trim }}
-    </div>
-  </div>
-  {% endfor %}
-  {% if claude_ai_extra and claude_ai_extra.is_enabled %}
-  <div class="card">
-    <label>Extra usage credits</label>
-    <div class="big-number mono">
-      {% if claude_ai_extra.utilization is not none %}{{ "%.2f"|format(claude_ai_extra.utilization) }}%{% else %}—{% endif %}
-    </div>
-    {% if claude_ai_extra.utilization is not none %}
-    <div class="progress {% if claude_ai_extra.utilization > 90 %}over{% endif %}">
-      <span style="width: {{ [claude_ai_extra.utilization, 100]|min }}%"></span>
-    </div>
-    {% endif %}
-    <div class="muted mono" style="font-size: 0.8rem; margin-top: 0.25rem">
-      {{ claude_ai_extra.used_credits or 0 }} / {{ claude_ai_extra.monthly_limit or 0 }}
-      {{ claude_ai_extra.currency or '' }}
-    </div>
-  </div>
-  {% endif %}
-</div>
-{% else %}
-<div class="card muted">
-  claude.ai poller is enabled but hasn't succeeded yet — check
-  <a href="/settings">settings</a> for the latest error.
-</div>
-{% endif %}
-{% endif %}
-
-<h2>Rate limit events <span class="muted" style="font-size: 0.8rem">(from <code>claude -p</code> stream)</span></h2>
-{% if rate_limits %}
-<div class="grid grid-2">
-  {% for rl in rate_limits %}
-  <div class="card">
-    <label>{{ rl.rate_limit_type|replace('_', ' ')|title }} window</label>
-    <div class="big-number
-      {% if rl.is_using_overage %}warn{% elif rl.status != 'allowed' %}err{% else %}ok{% endif %}">
-      {{ humandelta(rl.resets_at, now)|trim }}
-    </div>
-    <div class="muted mono">
-      status: <strong>{{ rl.status }}</strong>
-      {% if rl.is_using_overage %}
-        · <span class="warn">using overage</span>
-        {% if rl.overage_resets_at %}
-          (resets {{ humandelta(rl.overage_resets_at, now)|trim }})
-        {% endif %}
-      {% elif rl.overage_status and rl.overage_status != 'allowed' %}
-        · overage: <span class="err">{{ rl.overage_status }}</span>
-      {% endif %}
-    </div>
-    <div class="muted" style="font-size: 0.8rem; margin-top: 0.25rem">
-      observed {{ humandelta(rl.observed_at, now)|trim }}
-    </div>
+    <div class="metric-sub">resets {{ humandelta(w.resets_at, now)|trim }}</div>
   </div>
   {% endfor %}
 </div>
 {% else %}
-<div class="card muted">
-  No rate-limit snapshots yet. Anthropic only reveals these via the stream
-  on live <code>claude -p</code> invocations — run any job, or click
-  <strong>Probe</strong> to fire a sub-cent call just to capture the
-  current state.
-</div>
+<div class="empty">claude.ai poller is enabled but hasn't succeeded — see <a href="/settings">settings</a>.</div>
 {% endif %}
-<form method="post" action="/ledger/probe" style="margin-top: 0.5rem">
-  <button>Probe now (≪ $0.01)</button>
-</form>
+{% endif %}
 
-<h2>Cost windows</h2>
+<h2>Spend</h2>
 <div class="grid grid-3">
   <div class="card">
-    <label>Last 5 hours</label>
-    <div class="big-number mono">${{ "%.4f"|format(w5h.cost_usd) }}</div>
-    <div class="muted mono">{{ w5h.run_count }} runs · {{ w5h.input_tokens }} in / {{ w5h.output_tokens }} out</div>
+    <div class="metric-label">last 5h</div>
+    <div class="metric">${{ "%.4f"|format(w5h.cost_usd) }}</div>
+    <div class="metric-sub">{{ w5h.run_count }} runs</div>
   </div>
   <div class="card">
-    <label>Last 24 hours</label>
-    <div class="big-number mono">${{ "%.4f"|format(w24h.cost_usd) }}</div>
-    <div class="muted mono">{{ w24h.run_count }} runs · {{ w24h.input_tokens }} in / {{ w24h.output_tokens }} out</div>
+    <div class="metric-label">last 24h</div>
+    <div class="metric">${{ "%.4f"|format(w24h.cost_usd) }}</div>
+    <div class="metric-sub">{{ w24h.run_count }} runs</div>
   </div>
   <div class="card">
-    <label>Last 7 days</label>
-    <div class="big-number mono">${{ "%.4f"|format(w7d.cost_usd) }}</div>
-    <div class="muted mono">{{ w7d.run_count }} runs · {{ w7d.input_tokens }} in / {{ w7d.output_tokens }} out</div>
+    <div class="metric-label">last 7d</div>
+    <div class="metric">${{ "%.4f"|format(w7d.cost_usd) }}</div>
+    <div class="metric-sub">{{ w7d.run_count }} runs</div>
   </div>
 </div>
 
-<h2>By model (last 7 days)</h2>
-{% if model_usage_7d %}
-<table>
-  <thead><tr>
-    <th>Model</th><th>Runs</th><th>Cost</th><th>In tokens</th><th>Out tokens</th><th>Cache read</th><th>Cache create</th>
-  </tr></thead>
-  <tbody>
-    {% for m in model_usage_7d %}
-    <tr>
-      <td class="mono">{{ m.model }}</td>
-      <td class="mono">{{ m.runs }}</td>
-      <td class="mono">${{ "%.4f"|format(m.cost_usd) }}</td>
-      <td class="mono">{{ m.input_tokens }}</td>
-      <td class="mono">{{ m.output_tokens }}</td>
-      <td class="mono muted">{{ m.cache_read_tokens }}</td>
-      <td class="mono muted">{{ m.cache_creation_tokens }}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+<h2>Per job</h2>
+{% if not rollups %}
+<div class="empty">No runs tracked yet.</div>
 {% else %}
-<div class="card muted">No model usage tracked yet — run or scaffold a job first.</div>
-{% endif %}
-
-<h2>Per-job (last 10 runs each)</h2>
 <table>
-  <thead><tr>
-    <th>Slug</th><th># runs</th><th>Avg cost</th><th>Avg in</th><th>Avg out</th><th>Last run</th>
-  </tr></thead>
+  <thead>
+    <tr>
+      <th>Job</th>
+      <th class="num">Runs</th>
+      <th class="num">Avg cost</th>
+      <th class="num">Avg in</th>
+      <th class="num">Avg out</th>
+      <th>Last run</th>
+    </tr>
+  </thead>
   <tbody>
     {% for r in rollups %}
     <tr>
       <td><a href="/jobs/{{ r.slug }}" class="mono">{{ r.slug }}</a></td>
-      <td class="mono">{{ r.runs_last_10 }}</td>
-      <td class="mono">${{ "%.4f"|format(r.avg_cost_usd) }}</td>
-      <td class="mono">{{ "%.0f"|format(r.avg_input_tokens) }}</td>
-      <td class="mono">{{ "%.0f"|format(r.avg_output_tokens) }}</td>
-      <td class="mono muted">{{ r.last_run_at or '—' }}</td>
+      <td class="mono num">{{ r.runs_last_10 }}</td>
+      <td class="mono num">${{ "%.4f"|format(r.avg_cost_usd) }}</td>
+      <td class="mono num">{{ "%.0f"|format(r.avg_input_tokens) }}</td>
+      <td class="mono num">{{ "%.0f"|format(r.avg_output_tokens) }}</td>
+      <td class="mono dim small">{{ r.last_run_at or '—' }}</td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
+{% endif %}
 {% endblock %}

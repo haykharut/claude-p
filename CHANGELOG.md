@@ -22,9 +22,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   works with just `sessionKey`, and the CF cookie rotates too fast to
   be worth managing.
 
+### Changed
+- Full UI design pass. New visual language: cleaner typography scale,
+  proper `status` chips with colored dots, metric cards with uppercase
+  labels and tabular-nums, a consistent `.meta` strip for inline
+  key/value data, breadcrumbs on detail pages, subtle sticky nav.
+  Stripped explanatory paragraphs from every page — labels and chips
+  carry the information now. CSS is still a single self-contained
+  file; no external dependencies.
+
 ### Removed
 - Weekly-budget form on `/ledger` and the progress bar it fed. It was
   self-declared, un-enforced, and added visual noise.
+- "Rate limit events" cards + `Probe now` button from `/ledger`. The
+  claude.ai integration shows real utilization %; the coarser
+  `rate_limit_event` signal was redundant once that's connected.
+- "By model (last 7 days)" table from `/ledger`. Noise for most users;
+  the underlying `run_model_usage` table still gets populated on every
+  run in case we want to bring it back in a different shape.
+- `/ledger/probe` endpoint (orphaned after the rate-limit cards went).
+- Extra-usage credits card, `seven_day_sonnet` / `seven_day_omelette`
+  cards on `/ledger`. The subscription-usage section now shows just
+  the two windows everyone cares about: `five_hour` and `seven_day`.
+  Poller still stores all windows in `claude_ai_usage`.
 - Rate-limit visibility on the ledger page. `claude -p` emits a
   `rate_limit_event` with the 5-hour (and weekly, when present) window's
   reset time and overage status; we now capture those, persist the
