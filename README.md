@@ -18,7 +18,7 @@
 On the Ubuntu host:
 
 ```bash
-git clone https://github.com/haykh/claude-p.git
+git clone https://github.com/haykharut/claude-p.git
 cd claude-p
 ./scripts/install.sh
 ```

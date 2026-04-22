@@ -20,7 +20,7 @@ set -euo pipefail
 
 RUNNER_USER="claudectl-runner"
 RUNNER_HOME="/home/${RUNNER_USER}"
-REPO_URL="${CLAUDE_P_REPO_URL:-https://github.com/haykh/claude-p.git}"
+REPO_URL="${CLAUDE_P_REPO_URL:-https://github.com/haykharut/claude-p.git}"
 INSTALL_DIR="${RUNNER_HOME}/claude-p"
 DATA_DIR="${RUNNER_HOME}/claudectl"
 SERVICE_NAME="claude-p"
