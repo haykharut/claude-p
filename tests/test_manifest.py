@@ -1,0 +1,57 @@
+from pathlib import Path
+
+import pytest
+
+from claude_p.manifest import Manifest, ManifestError, load_manifest, parse_duration
+
+
+EXAMPLE = Path(__file__).parent.parent / "jobs-example" / "hello-world" / "job.yaml"
+
+
+def test_load_example_manifest():
+    m = load_manifest(EXAMPLE, expected_slug="hello-world")
+    assert m.name == "hello-world"
+    assert m.runtime == "uv"
+    assert m.entrypoint == "main.py"
+    assert m.schedule is None
+    assert m.workspace is True
+    assert m.timeout == "30s"
+    assert m.timeout_seconds == 30.0
+
+
+def test_parse_duration():
+    assert parse_duration("30s") == 30.0
+    assert parse_duration("10m") == 600.0
+    assert parse_duration("2h") == 7200.0
+    assert parse_duration("500ms") == 0.5
+    with pytest.raises(ValueError):
+        parse_duration("forever")
+
+
+def test_slug_validation():
+    with pytest.raises(Exception):
+        Manifest.model_validate(
+            {"name": "Bad Slug!", "entrypoint": "x.py"}
+        )
+    Manifest.model_validate({"name": "ok-slug_1", "entrypoint": "x.py"})
+
+
+def test_cron_validation_rejects_garbage():
+    with pytest.raises(Exception):
+        Manifest.model_validate(
+            {"name": "s", "entrypoint": "x.py", "schedule": "every monday"}
+        )
+
+
+def test_expected_slug_mismatch(tmp_path):
+    p = tmp_path / "job.yaml"
+    p.write_text("name: real-slug\nentrypoint: main.py\n")
+    with pytest.raises(ManifestError, match="does not match folder slug"):
+        load_manifest(p, expected_slug="wrong-slug")
+
+
+def test_malformed_yaml(tmp_path):
+    p = tmp_path / "job.yaml"
+    p.write_text("name: [unterminated")
+    with pytest.raises(ManifestError):
+        load_manifest(p)

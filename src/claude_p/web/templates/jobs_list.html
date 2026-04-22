@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Jobs — claude-p{% endblock %}
+{% block main %}
+<h1>Jobs</h1>
+<p class="muted">
+  Drop a folder with <code>job.yaml</code> into <code>/fs/jobs/</code> from any WebDAV mount — it'll appear below.
+  Or <a href="/scaffold">describe a new job</a> and let Claude scaffold it.
+</p>
+{% if not jobs %}
+  <div class="card muted">No jobs yet. Copy <code>jobs-example/hello-world/</code> into the jobs dir, or scaffold one.</div>
+{% else %}
+<table>
+  <thead>
+    <tr>
+      <th>Slug</th>
+      <th>Description</th>
+      <th>Runtime</th>
+      <th>Schedule</th>
+      <th>Next run</th>
+      <th>Last run</th>
+      <th>Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for j in jobs %}
+    <tr>
+      <td><a href="/jobs/{{ j.slug }}" class="mono">{{ j.slug }}</a></td>
+      <td>{{ j.description }}</td>
+      <td class="mono">{{ j.runtime }}</td>
+      <td class="mono">{{ j.schedule }}</td>
+      <td class="muted">{{ j.next_fire_in }}</td>
+      <td>
+        {% if j.last_run_id %}
+          <a href="/runs/{{ j.last_run_id }}" class="mono">{{ j.last_run_id[:8] }}</a>
+          {% if j.last_run_exit == 0 %}<span class="badge ok">ok</span>
+          {% elif j.last_run_exit is none %}<span class="badge warn">?</span>
+          {% else %}<span class="badge err">exit {{ j.last_run_exit }}</span>
+          {% endif %}
+          <span class="muted mono">${{ "%.4f"|format(j.last_run_cost) }}</span>
+        {% else %}
+          <span class="muted">—</span>
+        {% endif %}
+      </td>
+      <td>
+        {% if j.error %}<span class="badge err" title="{{ j.error }}">manifest error</span>
+        {% elif j.disabled %}<span class="badge warn">disabled</span>
+        {% elif j.running %}<span class="badge">running</span>
+        {% else %}<span class="badge ok">ready</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

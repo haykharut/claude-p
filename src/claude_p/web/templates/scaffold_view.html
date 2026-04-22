@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Scaffolding {{ scaffold.slug }} — claude-p{% endblock %}
+{% block main %}
+<h1>Scaffolding <span class="mono">{{ scaffold.slug }}</span></h1>
+<p class="muted">{{ scaffold.description }}</p>
+<p>Folder: <code>{{ scaffold.job_dir }}</code></p>
+
+<div id="status" class="card">
+  <span class="badge">starting…</span>
+</div>
+
+<h2>Live trace</h2>
+<ul id="events" class="trace-events"></ul>
+
+<p class="muted" id="footer" style="display:none">
+  Done. <a href="/jobs/{{ scaffold.slug }}">Open the job</a> or
+  <a href="/">go back to the jobs list</a>.
+</p>
+
+<script>
+(function() {
+  const events = document.getElementById('events');
+  const status = document.getElementById('status');
+  const footer = document.getElementById('footer');
+  const src = new EventSource("/scaffold/{{ scaffold.id }}/stream");
+
+  function summarize(data) {
+    try {
+      const e = JSON.parse(data);
+      if (e.type === 'system' && e.subtype === 'init') return 'session started';
+      if (e.type === 'assistant') {
+        const blocks = (e.message && e.message.content) || [];
+        for (const b of blocks) {
+          if (b.type === 'text') return '💬 ' + b.text.slice(0, 500);
+          if (b.type === 'tool_use') return '🔧 ' + b.name + ' ' + JSON.stringify(b.input).slice(0, 200);
+        }
+        return '(assistant)';
+      }
+      if (e.type === 'user') return '(tool result)';
+      if (e.type === 'result') {
+        return '✓ finished · cost $' + (e.total_cost_usd || 0).toFixed(4);
+      }
+      return e.type || JSON.stringify(e).slice(0, 200);
+    } catch (err) {
+      return data.slice(0, 200);
+    }
+  }
+
+  src.addEventListener('trace', (ev) => {
+    const li = document.createElement('li');
+    li.textContent = summarize(ev.data);
+    events.appendChild(li);
+    status.innerHTML = '<span class="badge">running…</span>';
+    li.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  });
+  src.addEventListener('end', (ev) => {
+    let data = {};
+    try { data = JSON.parse(ev.data); } catch (e) {}
+    status.innerHTML = data.exit_code === 0
+      ? '<span class="badge ok">done</span>'
+      : '<span class="badge err">exit ' + data.exit_code + (data.error ? ' · ' + data.error : '') + '</span>';
+    footer.style.display = 'block';
+    src.close();
+  });
+  src.onerror = () => { /* reconnect handled by EventSource */ };
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Scaffold — claude-p{% endblock %}
+{% block main %}
+<h1>Scaffold a new job</h1>
+<p class="muted">
+  Describe what you want in English. Claude will create a job folder with <code>job.yaml</code>,
+  <code>main.py</code>, <code>pyproject.toml</code>, and a short README. You can edit or
+  delete the folder afterward via the <code>/fs</code> mount.
+</p>
+<form method="post" action="/scaffold" class="spaced">
+  <div class="form-row">
+    <label for="slug">Slug</label>
+    <input id="slug" name="slug" type="text" required pattern="[a-z0-9][a-z0-9_\-]*"
+           placeholder="scan-job-boards" />
+    <div class="muted" style="font-size: 0.8rem; margin-top: 0.25rem">
+      lowercase, digits, <code>-</code> and <code>_</code>. This is the folder name.
+    </div>
+  </div>
+  <div class="form-row">
+    <label for="description">What should this job do?</label>
+    <textarea id="description" name="description" required rows="8"
+              placeholder="Daily at 9am, scan Hacker News &quot;Who is hiring&quot; threads and YC's job board for Python/infra roles in Europe. Produce a markdown digest grouped by company, save as digest.md."></textarea>
+  </div>
+  <button type="submit" class="primary">Scaffold</button>
+</form>
+{% endblock %}

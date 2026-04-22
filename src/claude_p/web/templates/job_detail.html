@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}{{ slug }} — claude-p{% endblock %}
+{% block main %}
+<h1 class="mono">{{ slug }}</h1>
+<p class="muted">{{ entry.manifest.description if entry.manifest else '(invalid manifest)' }}</p>
+
+{% if entry.error %}
+<div class="card err"><strong>Manifest error:</strong> <code>{{ entry.error }}</code></div>
+{% endif %}
+
+<div class="flex-row">
+  <form method="post" action="/jobs/{{ slug }}/run" style="display:inline">
+    <button class="primary" {% if running or not entry.manifest %}disabled{% endif %}>Run now</button>
+  </form>
+  {% if state and state.disabled_reason %}
+    <form method="post" action="/jobs/{{ slug }}/enable" style="display:inline"><button>Enable</button></form>
+  {% else %}
+    <form method="post" action="/jobs/{{ slug }}/disable" style="display:inline"><button class="danger">Disable</button></form>
+  {% endif %}
+  <span class="muted">Folder: <code>{{ entry.path }}</code></span>
+</div>
+
+{% if schedule %}
+<div class="card">
+  <div class="flex-row">
+    <div><label>Cron</label><div class="mono">{{ schedule.cron }}</div></div>
+    <div><label>Next fire</label><div class="mono muted">{{ schedule.next_fire_at or '—' }}</div></div>
+    <div><label>Last fire</label><div class="mono muted">{{ schedule.last_fire_at or '—' }}</div></div>
+  </div>
+</div>
+{% endif %}
+
+<h2>Manifest</h2>
+<pre><code>{{ manifest_text }}</code></pre>
+
+<h2>Run history</h2>
+{% if not runs %}
+<div class="card muted">No runs yet.</div>
+{% else %}
+<table>
+  <thead><tr>
+    <th>Run</th><th>Started</th><th>Ended</th><th>Trigger</th><th>Exit</th>
+    <th>Cost</th><th>In tokens</th><th>Out tokens</th><th>Error</th>
+  </tr></thead>
+  <tbody>
+    {% for r in runs %}
+    <tr>
+      <td><a href="/runs/{{ r.id }}" class="mono">{{ r.id[:8] }}</a></td>
+      <td class="mono muted">{{ r.started_at }}</td>
+      <td class="mono muted">{{ r.ended_at or '—' }}</td>
+      <td class="muted">{{ r.trigger }}</td>
+      <td>
+        {% if r.exit_code == 0 %}<span class="badge ok">0</span>
+        {% elif r.exit_code is none %}<span class="badge warn">running</span>
+        {% else %}<span class="badge err">{{ r.exit_code }}</span>{% endif %}
+      </td>
+      <td class="mono">${{ "%.4f"|format(r.cost_usd or 0) }}</td>
+      <td class="mono">{{ r.input_tokens or 0 }}</td>
+      <td class="mono">{{ r.output_tokens or 0 }}</td>
+      <td class="mono err">{{ r.error or '' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

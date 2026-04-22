@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Ledger — claude-p{% endblock %}
+{% block main %}
+<h1>Ledger</h1>
+<p class="muted">
+  Your own accounting. Anthropic's subscription caps are opaque weighted measures, not raw tokens —
+  there is no programmatic <code>/usage</code> endpoint. The numbers below are the sum of
+  <code>total_cost_usd</code> and token fields reported by <code>claude -p --output-format stream-json</code>.
+</p>
+
+<div class="grid grid-3">
+  <div class="card">
+    <label>Last 5 hours</label>
+    <div class="big-number mono">${{ "%.4f"|format(w5h.cost_usd) }}</div>
+    <div class="muted mono">{{ w5h.run_count }} runs · {{ w5h.input_tokens }} in / {{ w5h.output_tokens }} out</div>
+  </div>
+  <div class="card">
+    <label>Last 24 hours</label>
+    <div class="big-number mono">${{ "%.4f"|format(w24h.cost_usd) }}</div>
+    <div class="muted mono">{{ w24h.run_count }} runs · {{ w24h.input_tokens }} in / {{ w24h.output_tokens }} out</div>
+  </div>
+  <div class="card">
+    <label>Last 7 days</label>
+    <div class="big-number mono">${{ "%.4f"|format(w7d.cost_usd) }}</div>
+    <div class="muted mono">{{ w7d.run_count }} runs · {{ w7d.input_tokens }} in / {{ w7d.output_tokens }} out</div>
+    {% if budget > 0 %}
+      {% set frac = (w7d.cost_usd / budget) if budget > 0 else 0 %}
+      <div class="progress {% if frac > 1 %}over{% endif %}">
+        <span style="width: {{ [frac * 100, 100]|min }}%"></span>
+      </div>
+      <div class="muted mono">{{ "%.1f"|format(frac * 100) }}% of ${{ "%.2f"|format(budget) }} weekly budget</div>
+    {% endif %}
+  </div>
+</div>
+
+<h2>Weekly budget</h2>
+<form method="post" action="/ledger/budget" class="flex-row">
+  <input type="number" name="amount" step="0.01" min="0" value="{{ "%.2f"|format(budget) }}" style="max-width: 10rem" />
+  <button class="primary">Save</button>
+  <span class="muted">USD, self-declared. Used for the progress bar only — no enforcement.</span>
+</form>
+
+<h2>Per-job (last 10 runs each)</h2>
+<table>
+  <thead><tr>
+    <th>Slug</th><th># runs</th><th>Avg cost</th><th>Avg in</th><th>Avg out</th><th>Last run</th>
+  </tr></thead>
+  <tbody>
+    {% for r in rollups %}
+    <tr>
+      <td><a href="/jobs/{{ r.slug }}" class="mono">{{ r.slug }}</a></td>
+      <td class="mono">{{ r.runs_last_10 }}</td>
+      <td class="mono">${{ "%.4f"|format(r.avg_cost_usd) }}</td>
+      <td class="mono">{{ "%.0f"|format(r.avg_input_tokens) }}</td>
+      <td class="mono">{{ "%.0f"|format(r.avg_output_tokens) }}</td>
+      <td class="mono muted">{{ r.last_run_at or '—' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

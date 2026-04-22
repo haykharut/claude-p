@@ -1,0 +1,20 @@
+[Unit]
+Description=claude-p — home server for Claude Code agent jobs
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=claudectl-runner
+Group=claudectl-runner
+WorkingDirectory=/home/claudectl-runner
+Environment=PATH=/home/claudectl-runner/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=CLAUDE_P_DATA_DIR=/home/claudectl-runner/claudectl
+ExecStart=/home/claudectl-runner/claude-p/.venv/bin/claude-p serve
+Restart=on-failure
+RestartSec=5
+# Never kill mid-run with prejudice; jobs can be long.
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

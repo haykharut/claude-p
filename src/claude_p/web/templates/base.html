@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>{% block title %}claude-p{% endblock %}</title>
+<link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+<header class="nav">
+  <span class="brand">claude-p</span>
+  <a href="/" class="{% if active == 'jobs' %}active{% endif %}">Jobs</a>
+  <a href="/ledger" class="{% if active == 'ledger' %}active{% endif %}">Ledger</a>
+  <a href="/scaffold" class="{% if active == 'scaffold' %}active{% endif %}">Scaffold</a>
+  <span style="flex: 1;"></span>
+  <a href="/fs/" title="Browse filesystem" target="_blank">/fs</a>
+</header>
+<main>
+  {% block main %}{% endblock %}
+</main>
+</body>
+</html>

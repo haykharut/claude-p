@@ -1,0 +1,145 @@
+:root {
+  --bg: #0f1012;
+  --fg: #e6e6e6;
+  --muted: #9aa0a6;
+  --accent: #6ab7ff;
+  --warn: #ffb86c;
+  --err: #ff6b6b;
+  --ok: #6ee7a6;
+  --border: #2a2b30;
+  --card: #17181c;
+  --code: #101114;
+  --row-hover: #1c1d22;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 14px;
+  line-height: 1.5;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+header.nav {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+}
+header.nav .brand { font-weight: 600; font-family: monospace; }
+header.nav a { color: var(--fg); padding: 0.3rem 0.6rem; border-radius: 4px; }
+header.nav a.active { background: var(--row-hover); color: var(--accent); }
+main { padding: 1.2rem 1.5rem; max-width: 1200px; margin: 0 auto; }
+h1, h2, h3 { font-weight: 600; margin-top: 0; }
+h1 { font-size: 1.4rem; margin-bottom: 0.6rem; }
+h2 { font-size: 1.1rem; margin: 1.2rem 0 0.6rem; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+th, td {
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+th { font-weight: 500; color: var(--muted); font-size: 0.85rem; }
+tbody tr:hover { background: var(--row-hover); }
+tbody tr:last-child td { border-bottom: 0; }
+.muted { color: var(--muted); }
+.ok { color: var(--ok); }
+.err { color: var(--err); }
+.warn { color: var(--warn); }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.badge {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  border-radius: 3px;
+  font-size: 0.8rem;
+  background: var(--row-hover);
+  color: var(--muted);
+}
+.badge.ok { background: #133d24; color: var(--ok); }
+.badge.err { background: #3d1313; color: var(--err); }
+.badge.warn { background: #3d2913; color: var(--warn); }
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.9rem 1.1rem;
+  margin-bottom: 1rem;
+}
+.grid { display: grid; gap: 1rem; }
+.grid-3 { grid-template-columns: repeat(3, 1fr); }
+.grid-2 { grid-template-columns: repeat(2, 1fr); }
+@media (max-width: 700px) {
+  .grid-3, .grid-2 { grid-template-columns: 1fr; }
+}
+pre {
+  background: var(--code);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.7rem 0.9rem;
+  overflow: auto;
+  font-size: 0.85rem;
+  max-height: 40rem;
+}
+code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+button, input[type=submit], .btn {
+  background: var(--row-hover);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.35rem 0.8rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  font-family: inherit;
+}
+button:hover, .btn:hover { background: var(--border); }
+button.primary, .btn.primary { background: var(--accent); color: #0c1a2b; border-color: var(--accent); }
+button.danger { background: #552323; border-color: #7a3030; }
+input[type=text], input[type=password], input[type=number], textarea {
+  background: var(--code);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.4rem 0.6rem;
+  font-family: inherit;
+  font-size: 0.9rem;
+  width: 100%;
+}
+textarea { resize: vertical; min-height: 8rem; }
+label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 0.25rem; }
+.form-row { margin-bottom: 0.8rem; }
+.big-number { font-size: 1.6rem; font-weight: 600; }
+.progress {
+  height: 8px;
+  background: var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.progress > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+.progress.over > span { background: var(--err); }
+ul.trace-events { list-style: none; padding: 0; margin: 0; }
+ul.trace-events li {
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.flex-row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.spaced > * + * { margin-top: 0.75rem; }

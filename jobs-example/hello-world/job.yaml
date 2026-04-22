@@ -1,0 +1,10 @@
+name: hello-world
+description: minimal smoke-test job, writes a timestamped greeting
+runtime: uv
+entrypoint: main.py
+timeout: 30s
+workspace: true
+output_globs: ["greeting.txt"]
+notify:
+  on_success: dashboard
+  on_failure: dashboard
