@@ -3,11 +3,48 @@
 {% block main %}
 <h1>Settings</h1>
 
+<h2>Access</h2>
+<p class="muted small" style="margin-bottom: 0.75rem">
+  {% if bind_host == '0.0.0.0' %}Bound to <code>0.0.0.0:{{ webdav_urls[0][1].split(':')[-1].split('/')[0] }}</code> — reachable on LAN.
+  {% else %}Bound to <code>{{ bind_host }}</code> — local only.{% endif %}
+</p>
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="metric-label">Dashboard</div>
+    <div class="spaced">
+      {% for label, url in dashboard_urls %}
+      <div class="row">
+        <code style="flex:1; overflow-x:auto">{{ url }}</code>
+        <button type="button" class="small" onclick="navigator.clipboard.writeText('{{ url }}')">copy</button>
+        <span class="dim small">{{ label }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="card">
+    <div class="metric-label">WebDAV mount</div>
+    <div class="spaced">
+      {% for label, url in webdav_urls %}
+      <div class="row">
+        <code style="flex:1; overflow-x:auto">{{ url }}</code>
+        <button type="button" class="small" onclick="navigator.clipboard.writeText('{{ url }}')">copy</button>
+        <span class="dim small">{{ label }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="dim small" style="margin-top: 0.5rem">
+      Finder (⌘K) · Windows Map Drive · iOS Files · davfs2 on Linux.
+      See <a href="https://github.com/haykharut/claude-p/blob/main/docs/filesystem.md">docs/filesystem.md</a>.
+    </div>
+  </div>
+</div>
+
 <h2>claude.ai integration</h2>
 
 {% if last_ok_at and not last_error %}
 <div class="status ok" style="margin-bottom: 1rem">
-  <span class="dot"></span>connected · last probe <code>{{ last_ok_at }}</code>
+  <span class="dot"></span>connected · last probe <code>{{ last_ok_at[:16]|replace('T', ' ') }}</code>
 </div>
 {% elif last_error %}
 <div class="status err" style="margin-bottom: 0.5rem"><span class="dot"></span>probe failed</div>

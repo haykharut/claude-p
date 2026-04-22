@@ -112,6 +112,32 @@ subprocesses inherit the session).
 .venv/bin/pytest -x -q tests/test_manifest.py   # one file, stop on first fail
 ```
 
+## Ledger contract for jobs that shell out to `claude -p` directly
+
+Jobs that use `from claude_p import run_claude` get ledger entries for
+free. Jobs that invoke the `claude` binary themselves (e.g. because they
+need `--json-schema` or other flags not in `run_claude`) must write one
+JSON line per call to:
+
+```
+<CLAUDE_P_JOB_DIR>/runs/<CLAUDE_P_RUN_ID>/claude_calls.jsonl
+```
+
+Fields (all optional, unknown keys ignored):
+- `cost_usd: float`         — `total_cost_usd` from the envelope
+- `input_tokens: int`       — `usage.input_tokens`
+- `output_tokens: int`      — `usage.output_tokens`
+- `cache_read_tokens: int`  — `usage.cache_read_input_tokens`
+- `cache_creation_tokens: int` — `usage.cache_creation_input_tokens`
+- `model_usage: dict`       — raw `modelUsage` from the envelope (keyed by model name)
+- `is_error: bool`, `num_turns: int`, `session_id: str` — diagnostic
+
+The env vars `CLAUDE_P_RUN_ID` and `CLAUDE_P_JOB_DIR` are always set by
+the executor. If either is missing, the job is running locally and
+should no-op the ledger write. Reference impl: see
+`claude_p.claude_runner._append_ledger` and the inline helper
+`_report_to_ledger` in jobs/job-search/scripts/scout/classify.py.
+
 ## Things that would be nice but aren't in v1
 
 (Mirror of the "out of scope" in the plan file so nobody proposes them without

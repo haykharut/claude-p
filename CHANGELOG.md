@@ -31,6 +31,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   carry the information now. CSS is still a single self-contained
   file; no external dependencies.
 
+### Documented
+- Ledger contract for jobs that shell out to `claude -p` directly
+  (rather than using `run_claude()`) — append one JSON line per call to
+  `<CLAUDE_P_JOB_DIR>/runs/<CLAUDE_P_RUN_ID>/claude_calls.jsonl`.
+  Fields and schema now in `CLAUDE.md`.
+- `docs/filesystem.md` — WebDAV mount recipes for macOS Finder,
+  Windows Explorer, `davfs2` on Linux, iOS Files app, Android.
+- `docs/network.md` — LAN access, mDNS, firewall notes, Tailscale
+  recipe for remote access.
+- `docs/jobs.md` — end-to-end "add and run your first job" walkthrough:
+  scaffolder vs manual copy, manifest reference, first-run expectations,
+  `run_claude` SDK usage, ledger escape-hatch for direct `claude -p`
+  calls, schedule activation, edit/delete flows, troubleshooting.
+- README rewritten around real first-run flow: Mac dev mode vs Ubuntu
+  install script, first-session walkthrough, Settings → Access pointer.
+  Filesystem section now spells out that WebDAV is a **live mount** (one
+  copy on the server, remote devices read/write it directly) to dispel
+  the Dropbox-style-sync assumption.
+
+### Added (UX)
+- `/settings` page now has an **Access** card showing detected
+  dashboard + WebDAV URLs for `localhost`, LAN IP, and `.local` mDNS
+  hostname, with copy buttons. No more guessing your own IP.
+
 ### Removed
 - Weekly-budget form on `/ledger` and the progress bar it fed. It was
   self-declared, un-enforced, and added visual noise.

@@ -14,6 +14,7 @@ from claude_p.models import (
     CLAUDE_AI_ORG_ID_SETTING,
     CLAUDE_AI_SESSION_KEY_SETTING,
 )
+from claude_p.net import dashboard_urls, detect_host, webdav_urls
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -30,6 +31,7 @@ def _mask(value: str | None) -> str:
 @router.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request):
     st = request.app.state.claude_p
+    host = detect_host(st.cfg.bind_port)
     with connect(st.cfg.db_path) as conn:
         ctx = {
             "enabled": get_setting(conn, CLAUDE_AI_ENABLED_SETTING) == "1",
@@ -39,7 +41,15 @@ async def settings_page(request: Request):
             "last_error": get_setting(conn, CLAUDE_AI_LAST_ERROR_SETTING),
         }
     return st.templates.TemplateResponse(
-        request, "settings.html", {**ctx, "active": "settings"}
+        request,
+        "settings.html",
+        {
+            **ctx,
+            "dashboard_urls": dashboard_urls(host),
+            "webdav_urls": webdav_urls(host),
+            "bind_host": st.cfg.bind_host,
+            "active": "settings",
+        },
     )
 
 
