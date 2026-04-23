@@ -1,7 +1,6 @@
 -- Initial schema for claude-p.
 --
--- Runs are the append-log of every job execution (including scaffolder runs,
--- which use job_slug = '__scaffold__:<slug>').
+-- Runs are the append-log of every job execution.
 
 CREATE TABLE runs (
     id                      TEXT PRIMARY KEY,
@@ -9,7 +8,7 @@ CREATE TABLE runs (
     started_at              TEXT NOT NULL,
     ended_at                TEXT,
     exit_code               INTEGER,
-    trigger                 TEXT NOT NULL,          -- 'schedule' | 'manual' | 'scaffold'
+    trigger                 TEXT NOT NULL,          -- 'schedule' | 'manual'
     cost_usd                REAL NOT NULL DEFAULT 0,
     input_tokens            INTEGER NOT NULL DEFAULT 0,
     output_tokens           INTEGER NOT NULL DEFAULT 0,

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+- **Scaffolder.** The dashboard "Scaffold" tab, the English-prompt →
+  Claude-writes-a-job flow, the live SSE trace viewer, the
+  `api/scaffold.py` router, the `scaffolder.md` system prompt, the
+  `scaffolder_max_budget_usd` config field, and the `"scaffold"`
+  value from the `Trigger` literal. Jobs are now brought in the way
+  the user sees fit — drop a folder containing a `job.yaml` into
+  `~/claudectl/fs/jobs/` and the registry picks it up. Migration
+  `004_remove_scaffold.sql` purges any historical runs with
+  `trigger = 'scaffold'` and their `run_model_usage` rows. The
+  `ScaffoldInfo` model and the `ul.trace-events` CSS block
+  (only used by the scaffold view) are gone.
+
 ### Added
 - `claude-p dev` subcommand — same as `serve` but with uvicorn
   `--reload` watching `src/claude_p/` for `.py`/`.html`/`.css`
@@ -27,10 +40,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Job detail page's manifest view is now a **Parsed / Raw** segmented
-  toggle. Parsed (default) shows a human-readable card — name,
-  description, schedule (cron + next/last fire), runtime + entrypoint,
-  timeout, Claude config, storage flags, params, env, output globs.
-  Raw shows the original `job.yaml`. Pure CSS toggle, no JS.
+  toggle. Parsed (default) shows a human-readable card — schedule
+  (cron + next/last fire), runtime + entrypoint, timeout, Claude
+  config, storage flags, params, env, output globs. Raw shows the
+  original `job.yaml`. Pure CSS toggle, no JS.
 
 ### Changed
 - `claude_runner.py` removed; its logic split between

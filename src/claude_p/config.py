@@ -14,7 +14,6 @@ class Config(BaseSettings):
     bind_host: str = "0.0.0.0"
     bind_port: int = 8080
     poll_seconds: int = 10
-    scaffolder_max_budget_usd: float = 0.50
     session_secret: str = "change-me-in-production"
     dashboard_password_hash: str = ""
     claude_cli: str = "claude"

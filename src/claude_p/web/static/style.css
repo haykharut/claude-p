@@ -331,29 +331,6 @@ code {
 .crumb a { color: var(--fg-muted); }
 .crumb .sep { color: var(--fg-dim); margin: 0 0.4rem; }
 
-/* ── live trace (scaffold view) ──────────────────────────────── */
-ul.trace-events {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  border: 1px solid var(--border-soft);
-  border-radius: 6px;
-  background: var(--code-bg);
-  max-height: 30rem;
-  overflow-y: auto;
-}
-ul.trace-events li {
-  padding: 0.45rem 0.85rem;
-  border-bottom: 1px solid var(--border-soft);
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
-  font-size: 0.82rem;
-  white-space: pre-wrap;
-  word-break: break-word;
-  color: var(--fg);
-}
-ul.trace-events li:last-child { border-bottom: 0; }
-ul.trace-events li.dim { color: var(--fg-dim); }
-
 /* ── segmented toggle (parsed / raw manifest) ─────────────────── */
 .mv-input { position: absolute; opacity: 0; pointer-events: none; }
 .mv-header { margin: 2rem 0 0.75rem; }

@@ -1,16 +1,12 @@
 {% extends "base.html" %}
 {% block title %}Jobs — claude-p{% endblock %}
 {% block main %}
-<div class="row-between">
-  <h1>Jobs</h1>
-  <a href="/scaffold" class="btn primary">New job</a>
-</div>
+<h1>Jobs</h1>
 
 {% if not jobs %}
 <div class="empty" style="margin-top: 1.5rem">
-  No jobs yet.
-  <a href="/scaffold">Scaffold one</a>
-  or drop a folder into <code>~/claudectl/fs/jobs/</code>.
+  No jobs yet. Drop a folder with a <code>job.yaml</code> into
+  <code>~/claudectl/fs/jobs/</code> — the registry watcher picks it up within 2s.
 </div>
 {% else %}
 <table style="margin-top: 1rem">

@@ -78,14 +78,12 @@ def build_app(cfg: Config | None = None) -> FastAPI:
         jobs,
         ledger as ledger_api,
         runs,
-        scaffold,
         settings as settings_api,
     )
 
     app.include_router(jobs.router)
     app.include_router(runs.router)
     app.include_router(ledger_api.router)
-    app.include_router(scaffold.router)
     app.include_router(settings_api.router)
 
     app.add_middleware(BasicAuthMiddleware, db_path=cfg.db_path)

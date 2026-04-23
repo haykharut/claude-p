@@ -4,27 +4,11 @@ This doc walks you end-to-end: from nothing → a job folder on the server
 → a successful run → a recurring schedule. If you've already gotten
 `hello-world` running, skip to ["Writing your own from scratch"](#writing-your-own-from-scratch).
 
-## Two ways to create a job
+## Creating a job
 
-### 1. Scaffolder (recommended for your first one)
-
-Dashboard → **Scaffold**. Type what you want in English, e.g.
-
-> *Every morning at 9, fetch the top 10 posts from Hacker News front page,
-> summarise each in one sentence, and write the result to `digest.md`.*
-
-Pick a slug (kebab-case, matches the folder name), hit Scaffold. You'll
-see Claude's trace stream live — it creates `job.yaml`, `main.py`,
-`pyproject.toml` under `~/claudectl/fs/jobs/<slug>/`. Within 2s of the
-scaffolder finishing, the job appears in the jobs list.
-
-The registry watcher picks up the folder automatically. There is no
-"register" button.
-
-### 2. Copy a folder manually
-
-Any folder dropped under `~/claudectl/fs/jobs/` that contains a valid
-`job.yaml` becomes a job. Fastest way for your first attempt:
+Drop any folder containing a valid `job.yaml` under `~/claudectl/fs/jobs/`.
+The registry watcher picks it up within 2 seconds — there is no "register"
+button. Fastest way for your first attempt:
 
 ```bash
 # on the server (or via WebDAV from your Mac — same effect)
@@ -270,5 +254,3 @@ when you're happy with it.
 - **"Cost is $0 but I called `claude -p`"** — you shelled out directly
   without writing to `claude_calls.jsonl`. See the escape-hatch section
   above.
-- **"Scaffolder wrote something broken"** — just edit the files by
-  hand. The scaffolder is a convenience, not a source of truth.

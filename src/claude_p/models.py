@@ -2,9 +2,8 @@
 Pydantic models for everything that crosses a module boundary.
 
 The rule: if it moves between DB ↔ queries ↔ API ↔ templates, it's a model
-here. Internal mutable state that never leaves a module (the stream-json
-accumulator, the in-flight Scaffold object) stays as a plain dataclass in
-its owning module.
+here. Internal mutable state that never leaves a module (e.g. a stream-json
+accumulator) stays as a plain dataclass in its owning module.
 
 Models mirror the SQL schema in `migrations/001_initial.sql`. When the
 schema changes, update both together (new migration file + model diff).
@@ -20,7 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from claude_p.manifest import Manifest
 
-Trigger = Literal["schedule", "manual", "scaffold"]
+Trigger = Literal["schedule", "manual"]
 
 BackendEventKind = Literal[
     "session_start",
@@ -37,8 +36,8 @@ class BackendEvent(BaseModel):
     """One canonical event emitted by a `Backend.stream()` iterator.
 
     Every backend (claude CLI, codex CLI, HTTP API, …) converts its native
-    stream into these. The scaffolder SSE view renders them; the folding
-    helper in `backends/base.py` turns them into a `BackendResult`.
+    stream into these. The folding helper in `backends/base.py` turns them
+    into a `BackendResult`.
     """
 
     kind: BackendEventKind
@@ -65,7 +64,7 @@ class BackendResult(BaseModel):
     # executor-side persistence code reads these keys by name.
     model_usage: dict[str, dict[str, Any]] = Field(default_factory=dict)
     # Every rate-limit observation during the run. Persisted as snapshots
-    # by the scaffolder / executor so the dashboard can show them.
+    # by the executor so the dashboard can show them.
     rate_limit_events: list[dict[str, Any]] = Field(default_factory=list)
 
 
@@ -178,16 +177,6 @@ class RunSummary(BaseModel):
     last_run_cost: float = 0.0
     last_run_at: datetime | None = None
     running: bool = False
-
-
-class ScaffoldInfo(BaseModel):
-    """Response shape when the SSE stream ends — surfaced to the client."""
-
-    exit_code: int | None = None
-    error: str | None = None
-    cost_usd: float = 0.0
-    input_tokens: int = 0
-    output_tokens: int = 0
 
 
 class SettingKV(BaseModel):

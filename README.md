@@ -25,14 +25,12 @@ closet or the Ubuntu laptop you retired last year. No cloud, no
 per-agent licensing, no YAML DAGs to learn, no vendor to trust with
 your data.
 
-> Drop a folder → it becomes a scheduled agent. Describe a new one in
-> English → Claude writes it for you, live. Every token is
+> Drop a folder → it becomes a scheduled agent. Every token is
 > cost-tracked. Edit files over WebDAV from your phone.
 
 ## What people build with it
 
-Each of these is ~50 lines of Python in a single `main.py`. The
-scaffolder writes most of them for you.
+Each of these is ~50 lines of Python in a single `main.py`.
 
 - **Morning job scout** — hit 20 ATS endpoints, score fits against your
   resume, drop a shortlist in `digest.md` on your desk by 07:00.
@@ -71,9 +69,6 @@ or [Prefect](https://prefect.io) will serve you better.
 - **Folder-as-registry.** Drop a directory containing `job.yaml`
   under `~/claudectl/fs/jobs/` — it becomes a job within 2 seconds.
   Delete the folder, it's gone. There is no "register" button.
-- **A scaffolder.** Describe a job in English on the dashboard.
-  Claude reads, writes, runs — live, in your browser — producing the
-  whole folder with `job.yaml`, deps, entrypoint, ready to run.
 - **A cron scheduler** polling every 10 seconds. Standard 5-field
   cron. Next-fire time visible on the dashboard.
 - **A token ledger.** Every `run_claude()` call is parsed for cost and
@@ -83,7 +78,7 @@ or [Prefect](https://prefect.io) will serve you better.
   Finder, Windows Explorer, the iOS Files app, or `davfs2`. One copy,
   server-side, no sync conflicts.
 - **A dashboard.** Dark, fast, zero JS frameworks — cost windows,
-  per-job rollups, run history, live SSE traces during scaffolding.
+  per-job rollups, run history.
 - **Backend-agnostic.** Wraps `claude -p` today. Swap to `codex exec`,
   `gemini-cli`, or a direct HTTP API by implementing one method in
   one file — everything else keeps working. See [Backends](#backends).
@@ -91,8 +86,8 @@ or [Prefect](https://prefect.io) will serve you better.
 ## How it works
 
 1. **You drop a folder** under `~/claudectl/fs/jobs/` — via Finder
-   (over WebDAV), `cp` on the server, or the scaffolder. The registry
-   watcher picks it up in <2 seconds.
+   (over WebDAV) or `cp` on the server. The registry watcher picks it
+   up in <2 seconds.
 2. **The scheduler fires it** on its cron — or you click **Run now**
    on the dashboard.
 3. **Your job calls `run_claude(...)`,** which routes through the
@@ -107,7 +102,7 @@ or [Prefect](https://prefect.io) will serve you better.
    your folder                     claude-p daemon
  ┌────────────────┐  watcher 2s  ┌────────────────────┐   ┌──────────┐
  │ job.yaml       │ ───────────▶ │ scheduler          │   │ Backend  │
- │ main.py        │              │ scaffolder         │──▶│ claude / │
+ │ main.py        │              │ executor           │──▶│ claude / │
  │ workspace/     │ ◀──── runs/  │ ledger · dashboard │   │ codex /  │
  │ runs/<id>/     │              │ WebDAV             │   │ HTTP …   │
  └────────────────┘              └────────────────────┘   └──────────┘
@@ -198,9 +193,11 @@ safe to re-run.
    from [claude.ai/settings/usage](https://claude.ai/settings/usage) if
    you want live % utilization on the Ledger page (optional — the job
    runner works fine without it).
-3. Go to **Scaffold**. Describe a job in English — e.g. *"Every
-   morning at 9, fetch the top 10 Hacker News posts and summarize each
-   in one sentence into `digest.md`."* Watch Claude build it live.
+3. Copy an example job into place and run it:
+   ```bash
+   cp -r ~/claude-p/jobs-example/hello-world ~/claudectl/fs/jobs/
+   ```
+   The dashboard picks it up within 2 seconds.
 4. Click **Run now**. Output appears under `/runs/…`.
 5. The **Ledger** tab shows cost across rolling windows and per-job.
 
@@ -236,8 +233,8 @@ Full per-OS recipes: [docs/filesystem.md](./docs/filesystem.md).
 `run_claude()` is a thin wrapper over a pluggable `Backend`. The
 reference backend wraps `claude -p`; switching to `codex exec`,
 `gemini-cli`, or a direct HTTP LLM call takes one new file plus a
-`CLAUDE_P_BACKEND=…` flip. The ledger, scheduler, scaffolder, and
-dashboard are unaware of which backend is behind the wheel.
+`CLAUDE_P_BACKEND=…` flip. The ledger, scheduler, and dashboard are
+unaware of which backend is behind the wheel.
 
 See [`src/claude_p/backends/`](./src/claude_p/backends/) for the
 `Backend` ABC and the reference implementation. Every backend
@@ -261,8 +258,8 @@ config that expires when a startup pivots.
 ## Docs
 
 - [docs/jobs.md](./docs/jobs.md) — add and run your first job,
-  scaffolder vs manual, manifest reference, schedules, `run_claude`
-  SDK, escape hatch for direct `claude -p` calls.
+  manifest reference, schedules, `run_claude` SDK, escape hatch for
+  direct `claude -p` calls.
 - [docs/filesystem.md](./docs/filesystem.md) — WebDAV mount recipes
   per OS.
 - [docs/network.md](./docs/network.md) — LAN access, mDNS, Tailscale

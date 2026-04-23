@@ -31,13 +31,10 @@ Single Python package (`src/claude_p/`) deployed as a FastAPI daemon:
   **Always** parses `total_cost_usd` and
   `usage.{input,output,cache_read_input,cache_creation_input}_tokens`
   from the final `result` event.
-- `scaffolder` lives in `api/scaffold.py` (historic reasons; it's really part of
-  the core, just exposed via HTTP)
 - `webdav.py` — wsgidav + a2wsgi mounted at `/fs`
 - `auth.py` — argon2 single-password HTTP Basic middleware
-- `api/` — FastAPI routers (`jobs`, `runs`, `ledger`, `scaffold`)
-- `web/` — Jinja2 templates + one static CSS file (no JS framework, just
-  vanilla + an `EventSource` for scaffold SSE)
+- `api/` — FastAPI routers (`jobs`, `runs`, `ledger`, `settings`)
+- `web/` — Jinja2 templates + one static CSS file (no JS framework)
 
 Persistent state on disk under `~/claudectl/`:
 - `claude-p.db` (SQLite, WAL)
@@ -68,8 +65,8 @@ each in its own transaction, tracked in `schema_migrations`. Update
 
 If a value crosses a module boundary — DB ↔ query ↔ API ↔ template,
 or registry ↔ scheduler — it's a `BaseModel` in `models.py`. Internal
-mutable state (stream-json accumulator, in-flight `Scaffold` struct)
-can stay a `@dataclass` in its owning module. The test for "does this
+mutable state (e.g. a stream-json accumulator) can stay a `@dataclass`
+in its owning module. The test for "does this
 deserve a model?" is "would a reader of the consumer expect attribute
 access with autocomplete?" If yes, model.
 
