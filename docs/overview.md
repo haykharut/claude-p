@@ -2,18 +2,15 @@
 
 ## Why this exists
 
-Claude Code already supports looping — running a single prompt on a
-schedule. claude-p is looping on steroids. It executes arbitrary Python
-packages on a schedule, with **auto scheduling** that reads your live
-5-hour and 7-day token utilization to decide when to fire. Hot window?
+Claude Code's `/loop` repeats a single prompt on a timer. claude-p
+runs full Python projects on a schedule — and decides *when* to run
+them based on your live 5-hour and 7-day token utilization. Hot window?
 It defers. Quiet window at 02:00? It runs.
 
 Once you set up [Syncthing](./filesystem.md) for two-way folder sync,
 claude-p has zero impact on your workflow. Edit on your laptop, the
 server picks up changes in seconds, and job outputs land back on your
 desk.
-
-Three things make it tick:
 
 1. **Auto scheduling that treats your subscription like off-peak
    electricity** — fire when quota is cheap, defer when it's tight,

@@ -16,6 +16,12 @@ tokens you're already paying for, while you sleep.
 
 ---
 
+3 Core ideas:
+  - `claude -p (print)` centrality. `claude -p` is a great way in to building agentic workflows. It also helps us make better use of our claude code subscription.
+  -  `schedule: auto` mode. On auto mode, scheduler fires workflows when your quota has headroom. It's based on your liv 5-hour and 7-day utilization, time of day, and each job's historical cost. Hot window? It defers. Quiet window at 02:00? It runs.
+  - Zero impact on local workflows via folder-as-workflow and [Syncthing](./docs/filesystem.md). Set up Syncthing for two-way folder sync and keep working on your laptop. The server picks up changes in seconds; job outputs land back on your desk.
+
+
 ## How is this different from…
 
 |  | cron + scripts | Claude Code `/loop` | Prefect / Airflow / n8n | claude-p |
@@ -24,16 +30,9 @@ tokens you're already paying for, while you sleep.
 | Survives reboot / SSH logout | yes | no — dies with your terminal | yes | yes |
 | Token-aware scheduling | no | no | no | **yes** — reads your 5h/7d utilization |
 | Uses your Max subscription (no API cost) | DIY | yes | no — API keys + billing | **yes** |
-| Cost ledger per job/run | no | no | partial | **yes** — tokens, USD, rolling windows |
 | Dependency management (uv/pip) | DIY | no | yes | yes |
 | Dashboard | no | no | yes (heavy) | yes (lightweight) |
-| Setup complexity | zero | zero | high (Docker, DB, workers) | low (one script) |
-| Designed for | anything | prompt repetition | team data pipelines | **Max subscribers running agentic batch work on idle hardware** |
 
-**The short version:** if your workload is "repeat a prompt every N
-minutes," `/loop` is fine. If your workload is "run a Python project
-that calls Claude, hits APIs, writes files, and does it on a schedule
-that won't eat my active session" — that's what claude-p is for.
 
 ## Quick look
 
