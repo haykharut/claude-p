@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`scripts/bootstrap.sh` — one-command personal-server setup.** Creates
+  venv, initializes DB, prompts for dashboard password, installs a
+  systemd user service, enables loginctl linger, starts the daemon, and
+  runs doctor. Replaces the manual multi-step install for personal boxes.
+- **`scripts/update.sh` — pull, migrate, restart.** Pulls latest code,
+  re-syncs the venv, applies new migrations via `db-init`, and restarts
+  the systemd user service. One command after pushing new code.
+- **`systemd/claude-p.user.service` — user-level systemd unit template.**
+  Reference file; `bootstrap.sh` generates the actual unit with correct
+  absolute paths at install time.
 - **`schedule: auto` mode for jobs.** Instead of a cron expression, a
   job can declare a cadence (`every: 1d`) and optional priority and let
   the scheduler decide *when* to fire based on current 5h / weekly

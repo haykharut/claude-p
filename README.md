@@ -26,7 +26,7 @@ paid for and didn't use — and unused quota doesn't roll over.
 
 **claude-p is a home-server job runner that puts those unused hours
 to work.** Drop a folder with a `main.py`, tag it `schedule: auto`,
-and let the scheduler decide when to fire it — based on your current
+and let the scheduler decide when to fire it, based on your current
 5-hour and 7-day utilization, time of day, and each job's historical
 cost, learned from its own run history. Hot window? It defers. Quiet
 window at 02:00? It runs.
@@ -51,7 +51,7 @@ Three things make it tick:
 > your behalf. Edit files from your phone over WebDAV. Every token is
 > cost-tracked.
 
-## The auto scheduler (the whole point)
+## The auto scheduler
 
 Cron is fine if you need a run at exactly 09:00. Most batch work
 doesn't. "Run this roughly once a day, when my Claude session isn't
@@ -300,6 +300,8 @@ just set.
 
 ### Ubuntu home server (production)
 
+**Option A: full installer** (dedicated system user, recommended for shared machines):
+
 ```bash
 git clone https://github.com/haykharut/claude-p.git
 cd claude-p
@@ -311,6 +313,34 @@ installs `uv` and the daemon's venv, prompts you to run `claude login`,
 wires up a systemd unit, and prints the generated dashboard password.
 See [`scripts/install.sh`](./scripts/install.sh) — it's idempotent and
 safe to re-run.
+
+**Option B: bootstrap** (run as your own user, one command, personal box):
+
+```bash
+git clone https://github.com/haykharut/claude-p.git
+cd claude-p
+./scripts/bootstrap.sh
+```
+
+That's it. The script sets up the venv, initializes the DB, prompts for
+a dashboard password, installs a systemd user service, enables linger
+(so it survives SSH logout), starts the daemon, and runs `doctor`.
+
+Later, after pushing new code or migrations:
+
+```bash
+./scripts/update.sh
+```
+
+Pulls latest, re-syncs the venv, applies any new migrations, and
+restarts the service.
+
+Check status / logs:
+
+```bash
+systemctl --user status claude-p
+journalctl --user -u claude-p -f
+```
 
 ## First run (90 seconds)
 

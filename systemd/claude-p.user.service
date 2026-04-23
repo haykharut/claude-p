@@ -1,0 +1,15 @@
+[Unit]
+Description=claude-p — home server for Claude Code agent jobs
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=CLAUDE_P_DATA_DIR=%h/claudectl
+ExecStart=%h/claude-p/.venv/bin/claude-p serve
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+
+[Install]
+WantedBy=default.target
