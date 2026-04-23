@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **README trimmed from ~206 to ~120 lines.** Moved "Why this exists",
+  "What people build", "Who it's for" into `docs/overview.md`. Moved
+  Ubuntu install options and first-run walkthrough into `docs/install.md`.
+  README now focuses on: pitch → comparison table → code example →
+  quickstart → docs index.
+
 ### Added
 - **`scripts/setup-sync.sh` — one-command Syncthing pairing.** SSHs
   into the server, exchanges device IDs via the Syncthing REST API,
