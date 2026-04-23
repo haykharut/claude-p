@@ -354,6 +354,45 @@ ul.trace-events li {
 ul.trace-events li:last-child { border-bottom: 0; }
 ul.trace-events li.dim { color: var(--fg-dim); }
 
+/* ── segmented toggle (parsed / raw manifest) ─────────────────── */
+.mv-input { position: absolute; opacity: 0; pointer-events: none; }
+.mv-header { margin: 2rem 0 0.75rem; }
+.mv-header h2 { text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.72rem; color: var(--fg-muted); }
+.seg {
+  display: inline-flex;
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px;
+  gap: 2px;
+}
+.seg-btn {
+  padding: 0.25rem 0.8rem;
+  font-size: 0.74rem;
+  font-weight: 500;
+  border-radius: 999px;
+  cursor: pointer;
+  color: var(--fg-dim);
+  transition: background 140ms, color 140ms;
+  user-select: none;
+  letter-spacing: 0.01em;
+}
+.seg-btn:hover { color: var(--fg); }
+#mv-parsed:focus-visible ~ .mv-header .seg-btn[for="mv-parsed"],
+#mv-raw:focus-visible ~ .mv-header .seg-btn[for="mv-raw"] {
+  outline: 2px solid var(--accent-dim);
+  outline-offset: 2px;
+}
+#mv-parsed:checked ~ .mv-header .seg-btn[for="mv-parsed"],
+#mv-raw:checked ~ .mv-header .seg-btn[for="mv-raw"] {
+  background: var(--card);
+  color: var(--fg);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+.mv-panel { display: none; }
+#mv-parsed:checked ~ .mv-panel-parsed { display: block; }
+#mv-raw:checked ~ .mv-panel-raw { display: block; }
+
 /* ── misc ─────────────────────────────────────────────────────── */
 .empty {
   padding: 1.5rem;

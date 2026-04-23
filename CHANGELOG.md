@@ -26,6 +26,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (any backend yielding canonical events gets result folding for free).
 
 ### Changed
+- Job detail page's manifest view is now a **Parsed / Raw** segmented
+  toggle. Parsed (default) shows a human-readable card — name,
+  description, schedule (cron + next/last fire), runtime + entrypoint,
+  timeout, Claude config, storage flags, params, env, output globs.
+  Raw shows the original `job.yaml`. Pure CSS toggle, no JS.
+
+### Changed
 - `claude_runner.py` removed; its logic split between
   `backends/claude_cli.py` (CLI + stream-json parsing) and
   `backends/base.py` (folding). `ClaudeResult` → `BackendResult` (now a

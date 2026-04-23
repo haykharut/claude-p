@@ -27,16 +27,103 @@
 </div>
 {% endif %}
 
-<div class="meta" style="margin-top: 0.75rem">
-  {% if entry.manifest %}<span><em>runtime</em><strong>{{ entry.manifest.runtime }}</strong></span>{% endif %}
-  {% if schedule %}<span><em>cron</em><strong>{{ schedule.cron }}</strong></span>{% endif %}
-  {% if schedule and schedule.next_fire_at %}<span><em>next</em>{{ schedule.next_fire_at }}</span>{% endif %}
-  {% if schedule and schedule.last_fire_at %}<span><em>last fire</em>{{ schedule.last_fire_at }}</span>{% endif %}
-  <span><em>folder</em><code>{{ entry.path }}</code></span>
+<input type="radio" id="mv-parsed" name="manifest-view" class="mv-input" checked>
+<input type="radio" id="mv-raw" name="manifest-view" class="mv-input">
+
+<div class="row-between mv-header">
+  <h2 style="margin:0">Manifest</h2>
+  <div class="seg" role="tablist" aria-label="Manifest view">
+    <label for="mv-parsed" class="seg-btn">Parsed</label>
+    <label for="mv-raw" class="seg-btn">Raw</label>
+  </div>
 </div>
 
-<h2>Manifest</h2>
-<pre><code>{{ manifest_text }}</code></pre>
+<div class="mv-panel mv-panel-parsed">
+  {% if entry.manifest %}
+  {% set m = entry.manifest %}
+  <div class="card stack">
+    <div>
+      <div class="metric-label">Name</div>
+      <div class="mono">{{ m.name }}</div>
+    </div>
+    <div>
+      <div class="metric-label">Description</div>
+      <div>{{ m.description or '—' }}</div>
+    </div>
+    <div class="grid grid-2">
+      <div>
+        <div class="metric-label">Schedule</div>
+        {% if m.schedule %}
+          <div><code>{{ m.schedule }}</code></div>
+          {% if schedule and schedule.next_fire_at %}<div class="metric-sub">next: {{ schedule.next_fire_at }}</div>{% endif %}
+          {% if schedule and schedule.last_fire_at %}<div class="metric-sub">last: {{ schedule.last_fire_at }}</div>{% endif %}
+        {% else %}
+          <div class="dim">manual only</div>
+        {% endif %}
+      </div>
+      <div>
+        <div class="metric-label">Runtime</div>
+        <div><strong>{{ m.runtime }}</strong> &middot; <code>{{ m.entrypoint }}</code></div>
+        <div class="metric-sub">timeout: {{ m.timeout }}</div>
+      </div>
+      {% if m.claude %}
+      <div>
+        <div class="metric-label">Claude</div>
+        <div>budget ${{ "%.2f"|format(m.claude.max_budget_usd) }} &middot; {{ m.claude.permission_mode }}{% if m.claude.max_turns %} &middot; {{ m.claude.max_turns }} turns{% endif %}</div>
+        <div class="metric-sub">tools: {{ m.claude.allowed_tools|join(', ') }}</div>
+      </div>
+      {% endif %}
+      <div>
+        <div class="metric-label">Storage</div>
+        <div>
+          {% if m.workspace %}<span class="chip">workspace</span>{% endif %}
+          {% if m.shared %}<span class="chip">shared</span>{% endif %}
+          {% if not m.workspace and not m.shared %}<span class="dim">none</span>{% endif %}
+        </div>
+        <div class="metric-sub"><code>{{ entry.path }}</code></div>
+      </div>
+    </div>
+
+    {% if m.params %}
+    <div>
+      <div class="metric-label">Parameters</div>
+      <table>
+        <thead><tr><th>Name</th><th>Type</th><th>Default</th></tr></thead>
+        <tbody>
+          {% for k, v in m.params.items() %}
+          <tr>
+            <td class="mono">{{ k }}</td>
+            <td class="mono small muted">{{ v.type }}</td>
+            <td class="mono small muted">{{ v.default if v.default is not none else '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+
+    {% if m.env %}
+    <div>
+      <div class="metric-label">Required environment</div>
+      <div class="row">{% for e in m.env %}<code>{{ e }}</code>{% endfor %}</div>
+    </div>
+    {% endif %}
+
+    {% if m.output_globs %}
+    <div>
+      <div class="metric-label">Output globs</div>
+      <div class="row">{% for g in m.output_globs %}<code>{{ g }}</code>{% endfor %}</div>
+    </div>
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="empty">Manifest unavailable.</div>
+  {% endif %}
+</div>
+
+<div class="mv-panel mv-panel-raw">
+  <pre><code>{{ manifest_text }}</code></pre>
+</div>
 
 <h2>Runs</h2>
 {% if not runs %}
