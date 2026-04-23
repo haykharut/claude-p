@@ -56,5 +56,7 @@ def _build_wsgidav_app(fs_root: Path) -> WsgiDAVApp:
 
 def mount_webdav(app: FastAPI, cfg: Config) -> None:
     wsgi_app = _build_wsgidav_app(cfg.fs_root)
-    app.mount("/fs", WSGIMiddleware(wsgi_app))
+    # a2wsgi's Scope/Receive/Send protocols don't match Starlette's exactly,
+    # but the runtime behavior is correct — a2wsgi is designed for this mount.
+    app.mount("/fs", WSGIMiddleware(wsgi_app))  # type: ignore[arg-type]
     log.info("mounted WebDAV at /fs (root=%s)", cfg.fs_root)

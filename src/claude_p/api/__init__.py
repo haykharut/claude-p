@@ -45,9 +45,7 @@ def build_app(cfg: Config | None = None) -> FastAPI:
         registry.scan()
         reg_task = asyncio.create_task(registry.run(stop), name="registry-watcher")
         sched_task = asyncio.create_task(scheduler.run(stop), name="scheduler")
-        claude_ai_task = asyncio.create_task(
-            claude_ai.poller(cfg, stop), name="claude-ai-poller"
-        )
+        claude_ai_task = asyncio.create_task(claude_ai.poller(cfg, stop), name="claude-ai-poller")
         log.info("claude-p daemon started (data_dir=%s)", cfg.data_dir)
         try:
             yield
@@ -55,9 +53,7 @@ def build_app(cfg: Config | None = None) -> FastAPI:
             stop.set()
             for t in (reg_task, sched_task, claude_ai_task):
                 t.cancel()
-            await asyncio.gather(
-                reg_task, sched_task, claude_ai_task, return_exceptions=True
-            )
+            await asyncio.gather(reg_task, sched_task, claude_ai_task, return_exceptions=True)
             log.info("claude-p daemon stopped")
 
     app = FastAPI(title="claude-p", lifespan=lifespan)
@@ -76,8 +72,12 @@ def build_app(cfg: Config | None = None) -> FastAPI:
     # Routes
     from claude_p.api import (  # noqa: E402
         jobs,
-        ledger as ledger_api,
         runs,
+    )
+    from claude_p.api import (
+        ledger as ledger_api,
+    )
+    from claude_p.api import (
         settings as settings_api,
     )
 

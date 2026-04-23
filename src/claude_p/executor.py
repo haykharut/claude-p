@@ -8,7 +8,7 @@ import shlex
 import shutil
 import signal
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from croniter import croniter
@@ -111,9 +111,7 @@ def _aggregate_claude_calls(
                 bucket["input_tokens"] += int(m.get("inputTokens") or 0)
                 bucket["output_tokens"] += int(m.get("outputTokens") or 0)
                 bucket["cache_read_tokens"] += int(m.get("cacheReadInputTokens") or 0)
-                bucket["cache_creation_tokens"] += int(
-                    m.get("cacheCreationInputTokens") or 0
-                )
+                bucket["cache_creation_tokens"] += int(m.get("cacheCreationInputTokens") or 0)
     return totals, per_model
 
 
@@ -169,7 +167,7 @@ async def execute_run(
     workspace_dir = job_dir / "workspace"
     workspace_dir.mkdir(parents=True, exist_ok=True)
 
-    started = datetime.now(timezone.utc)
+    started = datetime.now(UTC)
     with connect(cfg.db_path) as conn:
         queries.insert_run_pending(
             conn,
@@ -188,9 +186,7 @@ async def execute_run(
 
     try:
         argv = _build_argv(cfg, manifest, job_dir)
-        env = _build_env(
-            cfg, manifest, run_id, job_dir, workspace_dir, extra_params, secrets
-        )
+        env = _build_env(cfg, manifest, run_id, job_dir, workspace_dir, extra_params, secrets)
 
         if manifest.runtime == "uv" and (job_dir / "pyproject.toml").exists():
             await _run_and_log(
@@ -212,7 +208,7 @@ async def execute_run(
             timeout=manifest.timeout_seconds,
             append=True,
         )
-    except asyncio.TimeoutError:
+    except TimeoutError:
         error = f"timeout after {manifest.timeout}"
         exit_code = -1
     except Exception as e:
@@ -220,7 +216,7 @@ async def execute_run(
         error = str(e)
         exit_code = -1
 
-    ended = datetime.now(timezone.utc)
+    ended = datetime.now(UTC)
     ledger, per_model = _aggregate_claude_calls(run_dir)
     rate_limit_events = _read_rate_limit_events(run_dir)
     copied_outputs: list[str] = []
@@ -268,9 +264,7 @@ async def execute_run(
     return run_id
 
 
-def _persist_model_usage(
-    conn, run_id: str, per_model: dict[str, dict[str, float | int]]
-) -> None:
+def _persist_model_usage(conn, run_id: str, per_model: dict[str, dict[str, float | int]]) -> None:
     for model, totals in per_model.items():
         queries.upsert_run_model_usage(
             conn,
@@ -284,9 +278,7 @@ def _persist_model_usage(
         )
 
 
-def _persist_rate_limits(
-    conn, run_id: str, observed_at: datetime, events: list[dict]
-) -> None:
+def _persist_rate_limits(conn, run_id: str, observed_at: datetime, events: list[dict]) -> None:
     """Fold a list of rate_limit_info dicts into rate_limit_snapshots.
 
     The event shape mirrors stream-json: rateLimitType, status, resetsAt
@@ -299,16 +291,14 @@ def _persist_rate_limits(
         if not rl_type or not status or resets_at_epoch is None:
             continue
         try:
-            resets_at = datetime.fromtimestamp(int(resets_at_epoch), tz=timezone.utc)
+            resets_at = datetime.fromtimestamp(int(resets_at_epoch), tz=UTC)
         except (TypeError, ValueError):
             continue
         overage_epoch = info.get("overageResetsAt")
         overage_resets_at = None
         if overage_epoch is not None:
             try:
-                overage_resets_at = datetime.fromtimestamp(
-                    int(overage_epoch), tz=timezone.utc
-                )
+                overage_resets_at = datetime.fromtimestamp(int(overage_epoch), tz=UTC)
             except (TypeError, ValueError):
                 overage_resets_at = None
         queries.upsert_rate_limit_snapshot(
@@ -365,6 +355,7 @@ async def _run_and_log(
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
+    assert proc.stdout is not None and proc.stderr is not None  # PIPE set above
 
     async def _copy(stream: asyncio.StreamReader, path: Path) -> None:
         with path.open(mode + "b") as f:
@@ -381,11 +372,11 @@ async def _run_and_log(
             timeout=timeout,
         )
         return await proc.wait()
-    except asyncio.TimeoutError:
+    except TimeoutError:
         try:
             proc.send_signal(signal.SIGTERM)
             await asyncio.wait_for(proc.wait(), timeout=5)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             proc.kill()
             await proc.wait()
         raise

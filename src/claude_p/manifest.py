@@ -114,9 +114,7 @@ def load_manifest(yaml_path: Path, expected_slug: str | None = None) -> Manifest
     except Exception as e:
         raise ManifestError(f"{yaml_path}: {e}") from e
     if expected_slug is not None and m.name != expected_slug:
-        raise ManifestError(
-            f"{yaml_path}: name {m.name!r} does not match folder slug {expected_slug!r}"
-        )
+        raise ManifestError(f"{yaml_path}: name {m.name!r} does not match folder slug {expected_slug!r}")
     return m
 
 

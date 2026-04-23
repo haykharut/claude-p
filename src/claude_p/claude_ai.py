@@ -22,7 +22,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -52,9 +52,7 @@ class ClaudeAiFetchError(Exception):
     """Any other error talking to the endpoint."""
 
 
-async def fetch_usage(
-    *, session_key: str, org_id: str, timeout: float = 15.0
-) -> dict[str, Any]:
+async def fetch_usage(*, session_key: str, org_id: str, timeout: float = 15.0) -> dict[str, Any]:
     """Hit /api/organizations/<org>/usage and return the parsed JSON.
 
     Raises ClaudeAiAuthError on 401/403 so the caller can surface a
@@ -154,7 +152,7 @@ async def poll_once(cfg: Config) -> None:
             set_setting(conn, CLAUDE_AI_LAST_ERROR_SETTING, str(e)[:500])
         return
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     with connect(cfg.db_path) as conn:
         n = persist_usage_payload(conn, payload, now)
         set_setting(conn, CLAUDE_AI_LAST_OK_AT_SETTING, now.isoformat())
@@ -170,5 +168,5 @@ async def poller(cfg: Config, stop_event: asyncio.Event) -> None:
             log.exception("claude.ai poller unhandled error")
         try:
             await asyncio.wait_for(stop_event.wait(), timeout=DEFAULT_POLL_SECONDS)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pass

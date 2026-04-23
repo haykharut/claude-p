@@ -36,8 +36,9 @@ def cmd_serve(args: argparse.Namespace) -> int:
 
 def cmd_dev(args: argparse.Namespace) -> int:
     """Dev mode: uvicorn with --reload watching src/. Same port as `serve`."""
-    import uvicorn
     from pathlib import Path
+
+    import uvicorn
 
     cfg = get_config()
     cfg.ensure_dirs()
@@ -91,9 +92,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         check(f"{cfg.claude_cli} CLI on PATH", claude_path is not None, "install Claude Code CLI")
         if claude_path:
             try:
-                out = subprocess.run(
-                    [cfg.claude_cli, "--version"], capture_output=True, text=True, timeout=5
-                )
+                out = subprocess.run([cfg.claude_cli, "--version"], capture_output=True, text=True, timeout=5)
                 check(f"{cfg.claude_cli} --version", out.returncode == 0, out.stderr.strip())
             except Exception as e:
                 check(f"{cfg.claude_cli} --version", False, str(e))
@@ -101,7 +100,9 @@ def cmd_doctor(args: argparse.Namespace) -> int:
             try:
                 r = subprocess.run(
                     [cfg.claude_cli, "-p", "--output-format", "json", "--max-turns", "1", "say 'ok'"],
-                    capture_output=True, text=True, timeout=60,
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
                 )
                 check(
                     "claude -p auth smoke",

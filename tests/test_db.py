@@ -8,10 +8,7 @@ from claude_p import db
 
 def _tables(path: Path) -> set[str]:
     with sqlite3.connect(path) as conn:
-        return {
-            r[0]
-            for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
-        }
+        return {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
 
 
 def test_init_db_applies_all_migrations(tmp_path: Path):
@@ -49,9 +46,7 @@ def test_extra_migration_applies_then_records(tmp_path: Path, monkeypatch):
         "CREATE TABLE foo (id INTEGER PRIMARY KEY); "
         "CREATE TABLE settings(key TEXT PRIMARY KEY, value TEXT NOT NULL);"
     )
-    (migs / "002_add_bar.sql").write_text(
-        "CREATE TABLE bar (id INTEGER PRIMARY KEY, x TEXT);"
-    )
+    (migs / "002_add_bar.sql").write_text("CREATE TABLE bar (id INTEGER PRIMARY KEY, x TEXT);")
     monkeypatch.setattr(db, "MIGRATIONS_DIR", migs)
 
     p = tmp_path / "y.db"
@@ -60,9 +55,7 @@ def test_extra_migration_applies_then_records(tmp_path: Path, monkeypatch):
     t = _tables(p)
     assert "foo" in t and "bar" in t
     with sqlite3.connect(p) as conn:
-        rows = conn.execute(
-            "SELECT version, filename FROM schema_migrations ORDER BY version"
-        ).fetchall()
+        rows = conn.execute("SELECT version, filename FROM schema_migrations ORDER BY version").fetchall()
     assert rows == [(1, "001_initial.sql"), (2, "002_add_bar.sql")]
 
 
@@ -79,9 +72,7 @@ def test_duplicate_version_is_rejected(tmp_path: Path, monkeypatch):
 def test_partial_failure_rolls_back(tmp_path: Path, monkeypatch):
     migs = tmp_path / "migrations"
     migs.mkdir()
-    (migs / "001_bad.sql").write_text(
-        "CREATE TABLE good(id INT); NOT VALID SQL;"
-    )
+    (migs / "001_bad.sql").write_text("CREATE TABLE good(id INT); NOT VALID SQL;")
     monkeypatch.setattr(db, "MIGRATIONS_DIR", migs)
     p = tmp_path / "z.db"
     with pytest.raises(sqlite3.OperationalError):

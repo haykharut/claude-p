@@ -1,6 +1,6 @@
 import pytest
 
-from claude_p.backends.claude_cli import build_claude_argv, _to_canonical
+from claude_p.backends.claude_cli import _to_canonical, build_claude_argv
 
 
 def test_argv_never_includes_bare():
@@ -43,9 +43,7 @@ def test_translate_system_init_to_session_start():
 
 
 def test_translate_assistant_text_block():
-    events = _to_canonical(
-        {"type": "assistant", "message": {"content": [{"type": "text", "text": "hello"}]}}
-    )
+    events = _to_canonical({"type": "assistant", "message": {"content": [{"type": "text", "text": "hello"}]}})
     assert len(events) == 1
     assert events[0].kind == "assistant_text_delta"
     assert events[0].data == {"text": "hello"}

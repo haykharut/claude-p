@@ -9,10 +9,11 @@ boundaries — we don't commit, connect, or retry at this layer.
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from claude_p.models import (
+    WEEKLY_BUDGET_SETTING,
     ClaudeAiExtraUsage,
     ClaudeAiUsageWindow,
     JobRollup,
@@ -21,7 +22,6 @@ from claude_p.models import (
     RateLimitSnapshot,
     Run,
     Schedule,
-    WEEKLY_BUDGET_SETTING,
     WindowTotals,
     as_job_state,
     as_rate_limit_snapshot,
@@ -56,9 +56,7 @@ def last_runs_by_slug(conn: sqlite3.Connection) -> dict[str, Run]:
 
 
 def list_job_states(conn: sqlite3.Connection) -> dict[str, JobState]:
-    return {
-        r["slug"]: as_job_state(r) for r in conn.execute("SELECT * FROM jobs_state").fetchall()
-    }
+    return {r["slug"]: as_job_state(r) for r in conn.execute("SELECT * FROM jobs_state").fetchall()}
 
 
 def get_job_state(conn: sqlite3.Connection, slug: str) -> JobState | None:
@@ -67,10 +65,7 @@ def get_job_state(conn: sqlite3.Connection, slug: str) -> JobState | None:
 
 
 def list_schedules(conn: sqlite3.Connection) -> dict[str, Schedule]:
-    return {
-        r["slug"]: as_schedule(r)
-        for r in conn.execute("SELECT * FROM schedules").fetchall()
-    }
+    return {r["slug"]: as_schedule(r) for r in conn.execute("SELECT * FROM schedules").fetchall()}
 
 
 def get_schedule(conn: sqlite3.Connection, slug: str) -> Schedule | None:
@@ -166,9 +161,7 @@ def delete_schedule(conn: sqlite3.Connection, slug: str) -> None:
     conn.execute("DELETE FROM schedules WHERE slug=?", (slug,))
 
 
-def upsert_schedule(
-    conn: sqlite3.Connection, slug: str, cron: str, next_fire_at: datetime
-) -> None:
+def upsert_schedule(conn: sqlite3.Connection, slug: str, cron: str, next_fire_at: datetime) -> None:
     conn.execute(
         """
         INSERT INTO schedules(slug, cron, next_fire_at, last_fire_at)
@@ -204,7 +197,7 @@ def due_job_slugs(conn: sqlite3.Connection, now: datetime) -> list[str]:
 def _window_start(hours: float) -> str:
     from datetime import timedelta
 
-    return (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
+    return (datetime.now(UTC) - timedelta(hours=hours)).isoformat()
 
 
 def window_totals(conn: sqlite3.Connection, hours: float) -> WindowTotals:
@@ -254,16 +247,13 @@ def per_job_rollups(conn: sqlite3.Connection) -> list[JobRollup]:
 
 
 def get_weekly_budget(conn: sqlite3.Connection) -> float:
-    row = conn.execute(
-        "SELECT value FROM settings WHERE key=?", (WEEKLY_BUDGET_SETTING,)
-    ).fetchone()
+    row = conn.execute("SELECT value FROM settings WHERE key=?", (WEEKLY_BUDGET_SETTING,)).fetchone()
     return float(row["value"]) if row else 0.0
 
 
 def set_weekly_budget(conn: sqlite3.Connection, amount: float) -> None:
     conn.execute(
-        "INSERT INTO settings(key,value) VALUES(?, ?) "
-        "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+        "INSERT INTO settings(key,value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
         (WEEKLY_BUDGET_SETTING, str(amount)),
     )
 
@@ -312,9 +302,7 @@ def upsert_rate_limit_snapshot(
 
 
 def list_rate_limit_snapshots(conn: sqlite3.Connection) -> list[RateLimitSnapshot]:
-    rows = conn.execute(
-        "SELECT * FROM rate_limit_snapshots ORDER BY rate_limit_type"
-    ).fetchall()
+    rows = conn.execute("SELECT * FROM rate_limit_snapshots ORDER BY rate_limit_type").fetchall()
     return [as_rate_limit_snapshot(r) for r in rows]
 
 

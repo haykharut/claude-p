@@ -28,9 +28,7 @@ def get_backend(cfg: Config) -> Backend:
         cls = _BACKENDS[cfg.backend]
     except KeyError:
         known = ", ".join(sorted(_BACKENDS)) or "<none>"
-        raise ValueError(
-            f"unknown CLAUDE_P_BACKEND={cfg.backend!r}; known backends: {known}"
-        ) from None
+        raise ValueError(f"unknown CLAUDE_P_BACKEND={cfg.backend!r}; known backends: {known}") from None
     return cls(cfg)
 
 

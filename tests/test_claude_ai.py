@@ -6,16 +6,15 @@ persistence logic with a synthetic payload.
 """
 
 import sqlite3
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
-from claude_p.claude_ai import EXTRA_USAGE_KEY, persist_usage_payload
+from claude_p.claude_ai import persist_usage_payload
 from claude_p.db import connect, init_db
 from claude_p.queries import (
     get_claude_ai_extra_usage,
     list_claude_ai_windows,
 )
-
 
 SAMPLE_PAYLOAD = {
     "five_hour": {
@@ -50,7 +49,7 @@ def test_persist_usage_payload_writes_windows_and_extra(tmp_path: Path):
     db = tmp_path / "x.db"
     init_db(db)
     with connect(db) as conn:
-        n = persist_usage_payload(conn, SAMPLE_PAYLOAD, datetime.now(timezone.utc))
+        n = persist_usage_payload(conn, SAMPLE_PAYLOAD, datetime.now(UTC))
     # 5 rows: five_hour, seven_day, seven_day_sonnet, seven_day_omelette, __extra_usage__
     # (null entries skipped)
     assert n == 5
@@ -77,7 +76,7 @@ def test_persist_usage_payload_writes_windows_and_extra(tmp_path: Path):
 def test_persist_is_idempotent(tmp_path: Path):
     db = tmp_path / "x.db"
     init_db(db)
-    obs = datetime.now(timezone.utc)
+    obs = datetime.now(UTC)
     with connect(db) as conn:
         persist_usage_payload(conn, SAMPLE_PAYLOAD, obs)
         persist_usage_payload(conn, SAMPLE_PAYLOAD, obs)
@@ -89,7 +88,7 @@ def test_persist_is_idempotent(tmp_path: Path):
 def test_null_windows_do_not_erase_existing_data(tmp_path: Path):
     db = tmp_path / "x.db"
     init_db(db)
-    obs = datetime.now(timezone.utc)
+    obs = datetime.now(UTC)
     with connect(db) as conn:
         persist_usage_payload(conn, SAMPLE_PAYLOAD, obs)
     # Second payload with seven_day set to null — should NOT clobber the

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from croniter import croniter
@@ -25,9 +25,7 @@ class Registry:
 
     def scan(self) -> None:
         seen: set[str] = set()
-        for job_dir in sorted(
-            self.cfg.jobs_dir.iterdir() if self.cfg.jobs_dir.exists() else []
-        ):
+        for job_dir in sorted(self.cfg.jobs_dir.iterdir() if self.cfg.jobs_dir.exists() else []):
             if not job_dir.is_dir():
                 continue
             yaml_path = job_dir / "job.yaml"
@@ -86,7 +84,7 @@ class Registry:
         *,
         error: str | None,
     ) -> None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         with connect(self.cfg.db_path) as conn:
             queries.upsert_job_state(
                 conn,
@@ -104,9 +102,7 @@ class Registry:
     async def run(self, stop_event: asyncio.Event) -> None:
         self.cfg.jobs_dir.mkdir(parents=True, exist_ok=True)
         self.scan()
-        async for changes in awatch(
-            self.cfg.jobs_dir, stop_event=stop_event, recursive=True
-        ):
+        async for changes in awatch(self.cfg.jobs_dir, stop_event=stop_event, recursive=True):
             self._apply_changes(changes)
 
     def _apply_changes(self, changes: set[tuple[Change, str]]) -> None:

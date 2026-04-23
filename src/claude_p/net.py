@@ -13,9 +13,9 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class HostInfo:
-    hostname: str          # e.g. "hayks-macbook-pro-4"
+    hostname: str  # e.g. "hayks-macbook-pro-4"
     mdns_name: str | None  # e.g. "hayks-macbook-pro-4.local" when available
-    lan_ip: str            # best-effort outgoing interface IP
+    lan_ip: str  # best-effort outgoing interface IP
     port: int
 
 

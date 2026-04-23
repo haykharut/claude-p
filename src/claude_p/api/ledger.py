@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
@@ -21,9 +21,7 @@ async def ledger_page(request: Request):
     with connect(st.cfg.db_path) as conn:
         claude_ai_enabled = get_setting(conn, CLAUDE_AI_ENABLED_SETTING) == "1"
         claude_ai_windows = queries.list_claude_ai_windows(conn) if claude_ai_enabled else []
-        claude_ai_extra = (
-            queries.get_claude_ai_extra_usage(conn) if claude_ai_enabled else None
-        )
+        claude_ai_extra = queries.get_claude_ai_extra_usage(conn) if claude_ai_enabled else None
     return st.templates.TemplateResponse(
         request,
         "ledger.html",
@@ -35,7 +33,7 @@ async def ledger_page(request: Request):
             "claude_ai_enabled": claude_ai_enabled,
             "claude_ai_windows": claude_ai_windows,
             "claude_ai_extra": claude_ai_extra,
-            "now": datetime.now(timezone.utc),
+            "now": datetime.now(UTC),
             "active": "ledger",
         },
     )

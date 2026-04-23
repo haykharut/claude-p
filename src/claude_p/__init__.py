@@ -5,8 +5,9 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+from collections.abc import Callable, Iterable
 from pathlib import Path
-from typing import Any, Callable, Iterable
+from typing import Any
 
 from claude_p.backends import get_backend
 from claude_p.config import get_config

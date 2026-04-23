@@ -43,9 +43,7 @@ async def run_detail(run_id: str, request: Request):
     output_dir = run_dir / "output"
     outputs: list[str] = []
     if output_dir.exists():
-        outputs = sorted(
-            str(p.relative_to(output_dir)) for p in output_dir.rglob("*") if p.is_file()
-        )
+        outputs = sorted(str(p.relative_to(output_dir)) for p in output_dir.rglob("*") if p.is_file())
     return st.templates.TemplateResponse(
         request,
         "run_detail.html",
@@ -78,9 +76,7 @@ async def run_stderr(run_id: str, request: Request):
 async def run_trace(run_id: str, request: Request):
     run = _load_run(request, run_id)
     p = Path(run.run_dir) / "trace.jsonl"
-    return PlainTextResponse(
-        p.read_text() if p.exists() else "", media_type="application/x-ndjson"
-    )
+    return PlainTextResponse(p.read_text() if p.exists() else "", media_type="application/x-ndjson")
 
 
 @router.get("/runs/{run_id}/output/{rel:path}")

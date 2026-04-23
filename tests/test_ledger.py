@@ -1,9 +1,9 @@
 import sqlite3
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from claude_p.db import init_db
-from claude_p.ledger import per_job_rollups, window_totals, set_weekly_budget, weekly_budget
+from claude_p.ledger import per_job_rollups, set_weekly_budget, weekly_budget, window_totals
 
 
 def _insert_run(db, run_id, slug, started, cost, in_t, out_t):
@@ -18,7 +18,7 @@ def _insert_run(db, run_id, slug, started, cost, in_t, out_t):
 def test_window_totals(tmp_path: Path):
     db = tmp_path / "t.db"
     init_db(db)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     _insert_run(db, "r1", "a", (now - timedelta(hours=1)).isoformat(), 0.01, 100, 50)
     _insert_run(db, "r2", "a", (now - timedelta(hours=3)).isoformat(), 0.02, 200, 80)
     _insert_run(db, "r3", "b", (now - timedelta(hours=10)).isoformat(), 0.10, 300, 150)
@@ -35,7 +35,7 @@ def test_window_totals(tmp_path: Path):
 def test_per_job_rollups_requires_jobs_state_row(tmp_path: Path):
     db = tmp_path / "t.db"
     init_db(db)
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     with sqlite3.connect(db) as conn:
         conn.execute(
             "INSERT INTO jobs_state(slug, last_seen_at) VALUES(?,?)",

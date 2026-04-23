@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from claude_p import queries
 from claude_p.config import Config
@@ -28,11 +28,11 @@ class Scheduler:
                 log.exception("scheduler tick error")
             try:
                 await asyncio.wait_for(stop_event.wait(), timeout=self.cfg.poll_seconds)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass
 
     async def _tick(self) -> None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         with connect(self.cfg.db_path) as conn:
             due = queries.due_job_slugs(conn, now)
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -24,7 +24,7 @@ async def jobs_list(request: Request):
         schedules = queries.list_schedules(conn)
         last_runs = queries.last_runs_by_slug(conn)
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     summaries: list[RunSummary] = []
     for slug, entry in sorted(st.registry.entries.items()):
         state = states.get(slug)
@@ -37,9 +37,7 @@ async def jobs_list(request: Request):
                 description=entry.manifest.description if entry.manifest else "(invalid)",
                 runtime=entry.manifest.runtime if entry.manifest else "—",
                 schedule=sched.cron if sched else "—",
-                next_fire_in=(
-                    f"{int((next_fire - now).total_seconds())}s" if next_fire else "—"
-                ),
+                next_fire_in=(f"{int((next_fire - now).total_seconds())}s" if next_fire else "—"),
                 error=entry.error or (state.manifest_error if state else None),
                 disabled=bool(state.disabled_reason) if state else False,
                 last_run_id=last.id if last else None,
@@ -49,9 +47,7 @@ async def jobs_list(request: Request):
                 running=st.scheduler.is_running(slug),
             )
         )
-    return st.templates.TemplateResponse(
-        request, "jobs_list.html", {"jobs": summaries, "active": "jobs"}
-    )
+    return st.templates.TemplateResponse(request, "jobs_list.html", {"jobs": summaries, "active": "jobs"})
 
 
 @router.get("/jobs/{slug}", response_class=HTMLResponse)

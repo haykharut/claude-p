@@ -1,9 +1,9 @@
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from claude_p.manifest import Manifest, ManifestError, load_manifest, parse_duration
-
 
 EXAMPLE = Path(__file__).parent.parent / "jobs-example" / "hello-world" / "job.yaml"
 
@@ -29,18 +29,14 @@ def test_parse_duration():
 
 
 def test_slug_validation():
-    with pytest.raises(Exception):
-        Manifest.model_validate(
-            {"name": "Bad Slug!", "entrypoint": "x.py"}
-        )
+    with pytest.raises(ValidationError):
+        Manifest.model_validate({"name": "Bad Slug!", "entrypoint": "x.py"})
     Manifest.model_validate({"name": "ok-slug_1", "entrypoint": "x.py"})
 
 
 def test_cron_validation_rejects_garbage():
-    with pytest.raises(Exception):
-        Manifest.model_validate(
-            {"name": "s", "entrypoint": "x.py", "schedule": "every monday"}
-        )
+    with pytest.raises(ValidationError):
+        Manifest.model_validate({"name": "s", "entrypoint": "x.py", "schedule": "every monday"})
 
 
 def test_expected_slug_mismatch(tmp_path):

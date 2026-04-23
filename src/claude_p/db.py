@@ -14,10 +14,10 @@ from __future__ import annotations
 
 import re
 import sqlite3
+from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Iterator
 
 MIGRATIONS_DIR = Path(__file__).parent / "migrations"
 _VERSION_RE = re.compile(r"^(\d+)_")
@@ -75,7 +75,7 @@ def init_db(db_path: Path) -> list[int]:
                 conn.executescript(sql)
                 conn.execute(
                     "INSERT INTO schema_migrations(version, applied_at, filename) VALUES (?,?,?)",
-                    (version, datetime.now(timezone.utc).isoformat(), path.name),
+                    (version, datetime.now(UTC).isoformat(), path.name),
                 )
                 conn.commit()
             except Exception:
@@ -104,7 +104,6 @@ def get_setting(conn: sqlite3.Connection, key: str, default: str | None = None) 
 
 def set_setting(conn: sqlite3.Connection, key: str, value: str) -> None:
     conn.execute(
-        "INSERT INTO settings(key, value) VALUES(?, ?) "
-        "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+        "INSERT INTO settings(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
         (key, value),
     )

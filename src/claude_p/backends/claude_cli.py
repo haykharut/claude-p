@@ -15,7 +15,8 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-from typing import Any, AsyncIterator, Iterable
+from collections.abc import AsyncIterator, Iterable
+from typing import Any
 
 from claude_p.models import BackendEvent, RunOptions
 
@@ -183,10 +184,7 @@ class ClaudeCLIBackend(Backend):
     async def stream(self, options: RunOptions) -> AsyncIterator[BackendEvent]:
         bo = options.backend_options
         claude_cli = (
-            bo.get("claude_cli")
-            or self.cfg.claude_cli
-            or os.environ.get("CLAUDE_P_CLAUDE_CLI")
-            or "claude"
+            bo.get("claude_cli") or self.cfg.claude_cli or os.environ.get("CLAUDE_P_CLAUDE_CLI") or "claude"
         )
         argv = build_claude_argv(
             options.prompt,
@@ -235,7 +233,7 @@ class ClaudeCLIBackend(Backend):
 
             try:
                 await asyncio.wait_for(proc.wait(), timeout=options.timeout_seconds)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 proc.kill()
                 await proc.wait()
         finally:

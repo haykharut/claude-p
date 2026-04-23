@@ -24,7 +24,8 @@ from __future__ import annotations
 
 import asyncio
 from abc import ABC, abstractmethod
-from typing import AsyncIterator, Callable, ClassVar
+from collections.abc import AsyncIterator, Callable
+from typing import ClassVar
 
 from claude_p.config import Config
 from claude_p.models import BackendEvent, BackendResult, RunOptions

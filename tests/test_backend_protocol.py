@@ -7,7 +7,7 @@ sync wrapper, on_event callback) comes for free.
 
 from __future__ import annotations
 
-from typing import AsyncIterator
+from collections.abc import AsyncIterator
 
 import pytest
 
@@ -134,9 +134,7 @@ def test_on_event_callback_errors_do_not_crash_the_run():
 
     import asyncio
 
-    result = asyncio.run(
-        backend.run_async(RunOptions(prompt="hi"), on_event=boom)
-    )
+    result = asyncio.run(backend.run_async(RunOptions(prompt="hi"), on_event=boom))
     # Run completed despite the callback raising on every event.
     assert result.cost_usd == pytest.approx(0.12)
 
