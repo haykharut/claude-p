@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Syncthing setup guide in `docs/filesystem.md`.** Full walkthrough
+  for bidirectional sync between a dev laptop and the server, including
+  ignore patterns for `.venv`/`__pycache__`/`*.pyc` (platform-specific
+  artifacts that break cross-platform). README updated to recommend
+  Syncthing for development alongside WebDAV for browsing.
 - **`scripts/bootstrap.sh` — one-command personal-server setup.** Creates
   venv, initializes DB, prompts for dashboard password, installs a
   systemd user service, enables loginctl linger, starts the daemon, and

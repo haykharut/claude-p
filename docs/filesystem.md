@@ -109,14 +109,68 @@ For truly fast / large-file access on Windows, run Samba separately on
 the Ubuntu box against `~/claudectl/fs/` and use WebDAV as a fallback
 for other devices.
 
-## Offline sync across machines
+## Syncthing — bidirectional sync for development
 
-WebDAV is a live mount — when the server is offline, your local copy
-disappears. For "keep a copy of this folder on both my laptop and the
-server and reconcile when I'm online" use
-[Syncthing](https://syncthing.net/) on top. It's out-of-band from
-claude-p; point both Syncthing instances at `~/claudectl/fs/shared/`
-(or any subdir you care about).
+WebDAV is a live mount — when the server is offline, your files
+disappear. If you develop jobs on your laptop and want changes to
+appear on the server in seconds (and server-side outputs to sync back),
+use [Syncthing](https://syncthing.net/). It runs on both machines and
+keeps folders in sync bidirectionally.
+
+### Setup (one-time, ~5 minutes)
+
+**Mac:**
+
+```bash
+brew install syncthing
+brew services start syncthing
+# Web UI at http://localhost:8384
+```
+
+**Ubuntu server:**
+
+```bash
+sudo apt install syncthing -y
+systemctl --user enable --now syncthing
+sudo loginctl enable-linger $USER   # keeps it running after SSH logout
+```
+
+To access the server's Syncthing UI from your Mac, forward the port:
+
+```bash
+ssh -L 8385:localhost:8384 <user>@<server-ip>
+# Server UI at http://localhost:8385 (keep open until pairing is done)
+```
+
+### Pairing
+
+1. **Server UI** (`:8385`): Actions → Show ID. Copy it.
+2. **Mac UI** (`:8384`): Add Remote Device → paste the ID → Save.
+3. **Server UI**: accept the new device when prompted.
+4. **Mac UI**: Add Folder →
+   - Path: `~/claudectl/fs/jobs`
+   - Sharing tab: check the server device
+5. **Server UI**: accept the shared folder, set path to
+   `~/claudectl/fs/jobs`.
+
+### Ignore patterns
+
+On either side, open the folder settings → Ignore Patterns and add:
+
+```
+.venv
+__pycache__
+*.pyc
+.ruff_cache
+```
+
+`.venv` is platform-specific (Linux vs macOS binaries) — each side
+creates its own. `__pycache__` and `.pyc` are also
+platform/version-specific. Syncing them causes `Exec format error` on
+the other side.
+
+After pairing, the SSH tunnel is no longer needed — Syncthing
+discovers peers over the LAN automatically. Close it and forget it.
 
 ## Common issues
 

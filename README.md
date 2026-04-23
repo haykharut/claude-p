@@ -373,17 +373,25 @@ Tunnel, SSH forward).
 ### Filesystem (the important bit)
 
 Your files live in one place: `~/claudectl/fs/` on the host running
-the daemon. From other devices you get a **live mount** of that folder
-over WebDAV — Finder (or Explorer, or the iOS Files app) pretends it's
-a local drive, but every open/save round-trips to the server. No sync,
-no local copy, no conflicts.
+the daemon. Two ways to access them from other devices:
+
+**WebDAV (live mount, no local copy):**
 
 - Mac: `⌘K` in Finder → `http://<server>:8080/fs` → admin / password.
 - Windows: Map Network Drive (needs a registry tweak for HTTP Basic).
 - Linux: `davfs2`.
 - iOS: Files → Connect to Server.
 
-Full per-OS recipes: [docs/filesystem.md](./docs/filesystem.md).
+Good for browsing, one-off edits, and mobile access.
+
+**Syncthing (bidirectional sync, recommended for development):**
+
+Develop jobs locally on your laptop; changes appear on the server in
+seconds. Job outputs sync back to your Mac automatically. Add `.venv`,
+`__pycache__`, `*.pyc` to ignore patterns so platform-specific
+artifacts don't cross.
+
+Setup guide: [docs/filesystem.md — Syncthing](./docs/filesystem.md#syncthing--bidirectional-sync-for-development).
 
 ## Backends
 
