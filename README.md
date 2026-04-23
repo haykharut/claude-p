@@ -4,12 +4,13 @@
 
 ### Stop leaving Claude tokens on the table.
 
-For people on a Claude subscription (especially Max) whose 5-hour
-window sits mostly idle — at 3am, during meetings, all the hours
-you're not at the keyboard. claude-p fills those gaps with batch work
-you actually want done, without ever busting your session.
+You built agentic workflows with Claude — Python scripts that call
+`claude -p` to scan job boards, summarize Reddit threads, review PRs.
+They work great, but only when your laptop is open. claude-p moves
+them to a home server so they run on schedule, using the subscription
+tokens you're already paying for, while you sleep.
 
-[Why](#why-this-exists) · [The auto scheduler](#the-auto-scheduler-the-whole-point) · [What people build](#what-people-build-with-it) · [Install](#install) · [Docs](./docs/)
+[Why](#why-this-exists) · [The auto scheduler](#the-auto-scheduler) · [What people build](#what-people-build-with-it) · [Install](#install) · [Docs](./docs/)
 
 </div>
 
@@ -19,19 +20,23 @@ you actually want done, without ever busting your session.
 
 ## Why this exists
 
-You pay $100–$200/month for Claude Max. Your 5-hour window refills
-while you sleep. By day, when you're coding, it's under pressure. By
-night, it's empty. Every hour you're not at the keyboard is quota you
-paid for and didn't use — and unused quota doesn't roll over.
+If you're on Claude Max, you've probably built things with `claude -p`
+by now. Python scripts that call Claude to do real work — scan job
+boards, digest your RSS feeds, review PRs, triage photos. They work.
+But they only run when you're at your laptop, when you remember to
+trigger them.
+
+Meanwhile, your 5-hour window refills while you sleep. Every hour
+you're not at the keyboard is quota you paid for and didn't use — and
+unused quota doesn't roll over.
 
 **claude-p is a home-server job runner that puts those unused hours
 to work.** Drop a folder with a `main.py`, tag it `schedule: auto`,
-and let the scheduler decide when to fire it, based on your current
-5-hour and 7-day utilization, time of day, and each job's historical
-cost, learned from its own run history. Hot window? It defers. Quiet
-window at 02:00? It runs.
+and the scheduler fires it when your quota has headroom — based on
+your live 5-hour and 7-day utilization, time of day, and each job's
+historical cost. Hot window? It defers. Quiet window at 02:00? It runs.
 
-Three things make it tick:
+Four things make it tick:
 
 1. **Auto scheduling that treats your subscription like off-peak
    electricity** — fire when quota is cheap, defer when it's tight,
@@ -46,10 +51,14 @@ Three things make it tick:
    file, 4 GB of RAM. Mac mini in a closet, retired Ubuntu laptop.
    No cloud, no per-agent licensing, no vendor to trust with your
    data, no webhook to churn off.
+4. **No workflow change.** Syncthing keeps your laptop as the place you
+   write and test code. Edits sync to the server in seconds; job outputs
+   sync back. You never SSH in to deploy. The server is invisible —
+   just a place where scheduled runs happen.
 
 > Drop a folder → schedule: auto → claude-p burns your idle quota on
-> your behalf. Edit files from your phone over WebDAV. Every token is
-> cost-tracked.
+> your behalf. Develop on your laptop, outputs land back on your desk.
+> Every token is cost-tracked.
 
 ## The auto scheduler
 
@@ -105,12 +114,14 @@ Full details: [docs/jobs.md §Auto schedule](./docs/jobs.md#auto-schedule-fill-u
 
 ## What people build with it
 
-Each of these is ~50 lines of Python in a single `main.py`.
+The first two jobs I built were a **morning job scout** (hit 20 ATS
+endpoints, score fits against my resume, drop a shortlist by 07:00) and
+a **Reddit digest** (summarize the 50 posts I'd actually open from my
+subreddit list). Each is ~50 lines of Python in a `main.py`. They ran
+overnight while I slept, using quota I'd otherwise waste.
 
-- **Morning job scout** — hit 20 ATS endpoints, score fits against your
-  resume, drop a shortlist in `digest.md` on your desk by 07:00.
-- **Newsroom of one** — ten-minute read of the 50 posts you'd actually
-  open, assembled from your RSS + subreddit list every morning.
+Here's what else people are building:
+
 - **PR second opinion** — on every push to your open-source repo,
   claude-p fetches the diff, reviews for obvious bugs and typos, posts
   comments back.
@@ -126,10 +137,11 @@ Each of these is ~50 lines of Python in a single `main.py`.
 
 ## Who it's for
 
-- **Claude Max subscribers** who want a return on their $100–$200/mo
-  beyond "fancy autocomplete while I'm at the keyboard." If your 5-hour
-  window spends most of its lifetime half-empty, that's quota you paid
-  for — claude-p burns it on your behalf.
+- **Claude Max subscribers** who already pay $100–$200/mo and want to
+  actually use the quota they're leaving on the table. claude-p costs
+  nothing extra — it runs on hardware you own, using tokens you've
+  already paid for. The only investment is an old laptop and 20 minutes
+  of setup.
 - **Indie hackers and homelab folk** who want the AI-agent future
   without renting a Kubernetes cluster to get there.
 - **Engineers tired of paying Zapier / n8n** for what Claude can already
@@ -161,6 +173,10 @@ or [Prefect](https://prefect.io) will serve you better.
 - **A WebDAV mount.** Your jobs folder is a network share. Edit from
   Finder, Windows Explorer, the iOS Files app, or `davfs2`. One copy,
   server-side, no sync conflicts.
+- **Syncthing-friendly dev loop.** Write and test jobs on your laptop;
+  Syncthing mirrors them to the server in seconds. Run outputs sync
+  back. Your editor, your Git workflow, your local tools — nothing
+  changes. Setup: [docs/filesystem.md](./docs/filesystem.md#syncthing--bidirectional-sync-for-development).
 - **A dashboard.** Dark, fast, zero JS frameworks — cost windows,
   per-job rollups, run history, auto-state ("deferred 3m ago,
   waiting for a good slot").
@@ -170,9 +186,11 @@ or [Prefect](https://prefect.io) will serve you better.
 
 ## How it works
 
-1. **You drop a folder** under `~/claudectl/fs/jobs/` — via Finder
-   (over WebDAV) or `cp` on the server. The registry watcher picks it
-   up in <2 seconds.
+0. **You develop on your laptop.** Syncthing (or a manual copy over
+   WebDAV) puts your job folder on the server. From here, everything
+   is automatic:
+1. **The registry picks it up** in <2 seconds. A folder under
+   `~/claudectl/fs/jobs/` with a `job.yaml` is a job.
 2. **The scheduler fires it** — on its cron, or (for `schedule: auto`)
    the first tick where your live Claude utilization and weekly budget
    both have headroom. Or you click **Run now** on the dashboard.

@@ -67,6 +67,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   concurrent-claude.ai-chat usage, falls back to cold-start values
   per-field when individual snapshots are missing.
 
+### Changed
+- **README narrative rewrite.** Origin story woven into "Why this
+  exists" (you already build workflows → they're laptop-bound → server
+  fills idle quota). Syncthing elevated to a design pillar (#4).
+  "What people build" leads with real first-party examples. "Who it's
+  for" lands the zero-additional-cost angle. "How it works" now shows
+  the full develop → sync → run loop.
+
 ### Known limitations
 - **Which `window_key` tracks `claude -p` consumption is not
   empirically verified yet.** The algorithm reads `five_hour` and
