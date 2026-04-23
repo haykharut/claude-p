@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 580 180">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#c084fc"/>
+      <stop offset="50%" stop-color="#818cf8"/>
+      <stop offset="100%" stop-color="#38bdf8"/>
+    </linearGradient>
+  </defs>
+  <rect width="580" height="180" rx="12" fill="#0d1117"/>
+  <text font-family="'SFMono-Regular','Consolas','Liberation Mono','Menlo',monospace"
+        font-size="15" fill="url(#g)" font-weight="bold"
+        xml:space="preserve">
+    <tspan x="30" y="42">         __                   __                  </tspan>
+    <tspan x="30" y="62">  _____ / /____ _ __  __ ____/ /___          ____ </tspan>
+    <tspan x="30" y="82"> / ___// // __ `// / / // __  // _ \ ______ / __ \</tspan>
+    <tspan x="30" y="102">/ /__ / // /_/ // /_/ // /_/ //  __//_____// /_/ /</tspan>
+    <tspan x="30" y="122">\___//_/ \__,_/ \__,_/ \__,_/ \___/       / .___/ </tspan>
+    <tspan x="30" y="142">                                         /_/      </tspan>
+  </text>
+</svg>

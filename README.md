@@ -1,7 +1,8 @@
 <div align="center">
 
-# claude-p
-## Stop leaving Claude tokens on the table.
+<img src="./assets/logo.svg" alt="claude-p" width="540">
+
+### Stop leaving Claude tokens on the table.
 
 claude-p is a seriously awesome mini-project that moves `claude -p` + Python based agentic workflows to a remote server and runs them on usage aware scheduler. It also promises to have zero impact on your local workflows. Read below to find out more.
 
