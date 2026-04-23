@@ -4,7 +4,7 @@
 
 ### Stop leaving Claude tokens on the table.
 
-You built agentic workflows with Claude — Python scripts that call
+You built agentic workflows with Claude code + Python scripts that call
 `claude -p` to scan job boards, summarize Reddit threads, review PRs.
 They work great, but only when your laptop is open. claude-p moves
 them to a home server so they run on schedule, using the subscription
@@ -15,28 +15,14 @@ tokens you're already paying for, while you sleep.
 </div>
 
 ---
-
-![dashboard screenshot placeholder](https://via.placeholder.com/1200x600/0b0c0e/9aa0a6?text=claude-p+dashboard)
-
 ## Why this exists
 
-If you're on Claude Max, you've probably built things with `claude -p`
-by now. Python scripts that call Claude to do real work — scan job
-boards, digest your RSS feeds, review PRs, triage photos. They work.
-But they only run when you're at your laptop, when you remember to
-trigger them.
+Claude code already supports looping, meaning running a certain task on a schedule. Think of claude-p as looping on stereoids. It can execute any arbitrary python package and supports auto scheduling, where it will take a look at your token usage to understand if something should run. Drop a folder with a `main.py`, tag it `schedule: auto`, and the scheduler fires it when your quota has headroom — based on your live 5-hour and 7-day utilization, time of day, and each job's historical cost. Hot window? It defers. Quiet window at 02:00? It runs.
 
-Meanwhile, your 5-hour window refills while you sleep. Every hour
-you're not at the keyboard is quota you paid for and didn't use — and
-unused quota doesn't roll over.
+On top of that, we made a decent effort to have literally 0 impact on your workflow. Once you setup claude-p the server and enable 2-way folder syncing with syncthing, you can go back to your familiar environment and keep working. The server will pick up any changes you make automatically. Anything job runs produce will arrive in your computer.
 
-**claude-p is a home-server job runner that puts those unused hours
-to work.** Drop a folder with a `main.py`, tag it `schedule: auto`,
-and the scheduler fires it when your quota has headroom — based on
-your live 5-hour and 7-day utilization, time of day, and each job's
-historical cost. Hot window? It defers. Quiet window at 02:00? It runs.
 
-Four things make it tick:
+3 things make it tick:
 
 1. **Auto scheduling that treats your subscription like off-peak
    electricity** — fire when quota is cheap, defer when it's tight,
@@ -45,10 +31,7 @@ Four things make it tick:
 2. **Folder-as-job.** A job is a directory with a `main.py` and a
    `job.yaml`. No DAG engine, no proprietary step format. Your code,
    your rules.
-3. **Lives on hardware you already own.** One Python binary, SQLite,
-   4 GB of RAM. Mac mini in a closet, retired Ubuntu laptop. No cloud,
-   no per-agent licensing.
-4. **No workflow change.** Syncthing keeps your laptop as the place you
+3. **No workflow change.** Syncthing keeps your laptop as the place you
    write and test code. Edits sync to the server in seconds; job outputs
    sync back. The server is invisible.
 
@@ -67,8 +50,6 @@ overnight while I slept, using quota I'd otherwise waste.
 Here's what else people are building:
 
 - **PR second opinion** — fetch the diff, review for bugs, post comments.
-- **Photo triage** — rename, tag, sort uploads into `photos/YYYY/MM/`.
-- **Invoice janitor** — parse PDFs, categorize, append to a spreadsheet.
 - **Friday retro** — `git log` across repos, summarize, email yourself.
 - **Home-lab ops** — SMART stats, package updates, analytics in one daily page.
 
@@ -85,8 +66,7 @@ Here's what else people are building:
   do, if only something would babysit it.
 
 If you need RBAC, multi-tenant isolation, or a proper workflow DAG
-engine, [Windmill](https://windmill.dev), [Kestra](https://kestra.io),
-or [Prefect](https://prefect.io) will serve you better.
+engine, this is not it. Rather, this is a modelling of a very specific, personalized use-case.
 
 ## Quick look
 
