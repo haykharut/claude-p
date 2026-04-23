@@ -1,14 +1,9 @@
 <div align="center">
 
 # claude-p
+## Stop leaving Claude tokens on the table.
 
-### Stop leaving Claude tokens on the table.
-
-You built agentic workflows with Claude Code + Python scripts that call
-`claude -p` to scan job boards, summarize Reddit threads, review PRs.
-They work great, but only when your laptop is open. claude-p moves
-them to a home server so they run on schedule, using the subscription
-tokens you're already paying for, while you sleep.
+claude-p is a seriously awesome mini-project that moves `claude -p` + Python based agentic workflows to a remote server and runs them on usage aware scheduler. It also promises to have zero impact on your local workflows. Read below to find out more.
 
 [Overview](./docs/overview.md) · [Quick look](#quick-look) · [Install](#install) · [Docs](./docs/)
 
@@ -17,8 +12,8 @@ tokens you're already paying for, while you sleep.
 ---
 
 3 Core ideas:
-  - `claude -p (print)` centrality. `claude -p` is a great way in to building agentic workflows. It also helps us make better use of our claude code subscription.
-  -  `schedule: auto` mode. On auto mode, scheduler fires workflows when your quota has headroom. It's based on your liv 5-hour and 7-day utilization, time of day, and each job's historical cost. Hot window? It defers. Quiet window at 02:00? It runs.
+  - `claude -p` is a great way in to building agentic workflows. It also helps us make better use of our claude code subscription without having to pay API costs.
+  -  Optional `schedule: auto` mode. On auto mode, scheduler fires workflows when your quota has headroom. It's based on your liv 5-hour and 7-day utilization, time of day, and each job's historical cost. Hot window? It defers. Quiet window at 02:00? It runs.
   - Zero impact on local workflows via folder-as-workflow and [Syncthing](./docs/filesystem.md). Set up Syncthing for two-way folder sync and keep working on your laptop. The server picks up changes in seconds; job outputs land back on your desk.
 
 
@@ -57,13 +52,18 @@ llm:
 ```
 
 ```python
-# main.py
-from claude_p import run_claude
+# main.py — your code, your rules
+import subprocess, json
 
-result = run_claude(
-    prompt="Summarise these job postings into a markdown digest: …",
+result = subprocess.run(
+    ["claude", "-p", "Summarise these job postings into a markdown digest: …",
+     "--output-format", "json"],
+    capture_output=True, text=True,
 )
-print(result.text, result.cost_usd)
+response = json.loads(result.stdout)
+
+with open("digest.md", "w") as f:
+    f.write(response["result"])
 ```
 
 Drop the folder under `~/claudectl/fs/jobs/` — the daemon picks it up
@@ -74,12 +74,16 @@ in 2 seconds. Full manifest reference: [docs/jobs.md](./docs/jobs.md).
 ```bash
 git clone https://github.com/haykharut/claude-p.git
 cd claude-p
-uv venv --python 3.12 && uv pip install -e '.[dev]'
-.venv/bin/claude-p set-password
-.venv/bin/claude-p dev
+./scripts/bootstrap.sh
 ```
 
-Open <http://localhost:8080>. For Ubuntu server setup, see
+One command: venv, DB, password, systemd service. Then pair your laptop:
+
+```bash
+./scripts/setup-sync.sh user@your-server
+```
+
+Open <http://localhost:8080>. Full install options:
 [docs/install.md](./docs/install.md).
 
 ## Philosophy
