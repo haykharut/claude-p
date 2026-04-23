@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Pre-commit + type checking.** `.pre-commit-config.yaml` runs
+  `ruff check --fix`, `ruff format`, `pyright` (basic mode), and a
+  handful of `pre-commit-hooks` staples on every commit.
+  `[tool.pyright]` and `[tool.ruff.format]` added to `pyproject.toml`;
+  `pre-commit` added to dev deps. Install once with
+  `.venv/bin/pre-commit install`. Existing code cleaned up in the
+  same pass so `pre-commit run --all-files` starts green.
+
 ### Removed
 - **Scaffolder.** The dashboard "Scaffold" tab, the English-prompt →
   Claude-writes-a-job flow, the live SSE trace viewer, the

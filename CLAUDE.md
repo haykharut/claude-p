@@ -117,6 +117,29 @@ subprocesses inherit the session).
 .venv/bin/pytest -x -q tests/test_manifest.py   # one file, stop on first fail
 ```
 
+## Linting, formatting, type checking
+
+One config (`.pre-commit-config.yaml`) drives everything:
+
+- `ruff check --fix` — lint + import sort
+- `ruff format` — format
+- `pyright` — basic-mode type check on `src/`
+- trailing-whitespace / EOF / YAML / large-file staples
+
+Install the hook once per clone:
+
+```bash
+.venv/bin/pre-commit install
+.venv/bin/pre-commit run --all-files    # run on the whole tree
+```
+
+Configuration lives in `pyproject.toml` (`[tool.ruff]`, `[tool.ruff.format]`,
+`[tool.pyright]`). `basic` mode is deliberate — we want bug-finding without
+demanding annotations everywhere. If pyright's noisy on a line because of
+an upstream typing quirk (e.g. `a2wsgi` vs Starlette in `webdav.py`),
+`# type: ignore[<rule>]` with a one-line explanation is fine; don't contort
+working code for the type checker.
+
 ## Ledger contract for jobs that shell out to `claude -p` directly
 
 Jobs that use `from claude_p import run_claude` get ledger entries for
