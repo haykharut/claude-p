@@ -14,13 +14,76 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from claude_p.manifest import Manifest
 
 Trigger = Literal["schedule", "manual", "scaffold"]
+
+BackendEventKind = Literal[
+    "session_start",
+    "assistant_text_delta",
+    "tool_use",
+    "tool_result",
+    "rate_limit",
+    "result",
+    "raw",
+]
+
+
+class BackendEvent(BaseModel):
+    """One canonical event emitted by a `Backend.stream()` iterator.
+
+    Every backend (claude CLI, codex CLI, HTTP API, …) converts its native
+    stream into these. The scaffolder SSE view renders them; the folding
+    helper in `backends/base.py` turns them into a `BackendResult`.
+    """
+
+    kind: BackendEventKind
+    data: dict[str, Any] = Field(default_factory=dict)
+
+
+class BackendResult(BaseModel):
+    """Accumulated outcome of one Backend invocation. Replaces the old
+    `ClaudeResult` dataclass. Folded from the `result` event (authoritative
+    for cost/tokens) plus running accumulation from other events."""
+
+    text: str = ""
+    cost_usd: float = 0.0
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_creation_tokens: int = 0
+    session_id: str | None = None
+    num_turns: int = 0
+    is_error: bool = False
+    stop_reason: str | None = None
+    # Per-model breakdown, keyed by model name. Values are the raw dict
+    # from the backend's `result` event (costUSD, inputTokens, …) — the
+    # executor-side persistence code reads these keys by name.
+    model_usage: dict[str, dict[str, Any]] = Field(default_factory=dict)
+    # Every rate-limit observation during the run. Persisted as snapshots
+    # by the scaffolder / executor so the dashboard can show them.
+    rate_limit_events: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class RunOptions(BaseModel):
+    """Input to `Backend.stream()`. Common params on the struct; anything
+    backend-native goes into `backend_options` so the shared surface stays
+    small and HTTP backends don't have to carry CLI-isms."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    prompt: str
+    model: str | None = None
+    system_prompt: str | None = None
+    max_turns: int | None = None
+    max_budget_usd: float | None = 1.0
+    timeout_seconds: float | None = None
+    cwd: str | Path | None = None
+    backend_options: dict[str, Any] = Field(default_factory=dict)
 
 
 class Run(BaseModel):

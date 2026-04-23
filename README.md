@@ -43,7 +43,8 @@ for what it actually does — it's idempotent and safe to re-run.
 1. Open the dashboard — go to **Settings** first. The **Access** card
    shows the exact URLs to use from other devices and for the WebDAV
    mount.
-2. Still on Settings, paste your `sessionKey` + organization ID from
+2. Still on Settings, find the **Setup Claude** section and paste your
+   `sessionKey` + organization ID from
    [claude.ai/settings/usage](https://claude.ai/settings/usage) if you
    want real % utilization on the Ledger page (optional).
 3. Go to **Scaffold**, describe a job in English, watch Claude build
@@ -132,6 +133,27 @@ If you need flags `run_claude` doesn't expose (e.g. `--json-schema`),
 shell out to `claude` directly and write one JSON line per call to
 `<CLAUDE_P_JOB_DIR>/runs/<CLAUDE_P_RUN_ID>/claude_calls.jsonl`. See
 [CLAUDE.md](./CLAUDE.md) for the exact contract.
+
+## Backends (swap `claude -p` for something else)
+
+`run_claude()` is a thin wrapper over a pluggable `Backend`. The
+reference backend wraps `claude -p`; a developer who wants to run
+`codex exec`, `gemini-cli`, or a direct HTTP API call implements one
+subclass and flips a config var.
+
+The surface is in [`src/claude_p/backends/`](./src/claude_p/backends/):
+
+- `base.py` — `Backend` ABC. One abstract method
+  (`async stream(options) -> AsyncIterator[BackendEvent]`) plus a
+  `name`. Result folding, sync wrappers, ledger writes — all shared.
+- `claude_cli.py` — reference implementation. Read this file to see
+  the shape.
+- `__init__.py` — registry. Add a new `"codex_cli": CodexCLIBackend`
+  entry here.
+
+Then `CLAUDE_P_BACKEND=codex_cli` (or set it via `.env`) and restart
+the daemon. User jobs calling `run_claude(...)` are unchanged — their
+kwargs just get routed to whichever backend is selected.
 
 ## Philosophy
 

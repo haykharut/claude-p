@@ -78,40 +78,42 @@ def cmd_doctor(args: argparse.Namespace) -> int:
                 print(f"      → {hint}")
 
     print(f"data_dir: {cfg.data_dir}")
+    print(f"backend:  {cfg.backend}")
     check("data_dir exists", cfg.data_dir.exists(), "run `claude-p db-init`")
     check("db file exists", cfg.db_path.exists(), "run `claude-p db-init`")
     check("jobs_dir exists", cfg.jobs_dir.exists(), "run `claude-p db-init`")
 
-    claude_path = shutil.which(cfg.claude_cli)
-    check(f"{cfg.claude_cli} CLI on PATH", claude_path is not None, "install Claude Code CLI")
-    if claude_path:
-        try:
-            out = subprocess.run(
-                [cfg.claude_cli, "--version"], capture_output=True, text=True, timeout=5
-            )
-            check(f"{cfg.claude_cli} --version", out.returncode == 0, out.stderr.strip())
-        except Exception as e:
-            check(f"{cfg.claude_cli} --version", False, str(e))
-
     uv_path = shutil.which(cfg.uv_cli)
     check(f"{cfg.uv_cli} CLI on PATH", uv_path is not None, "install uv: https://docs.astral.sh/uv/")
 
-    # Try a trivial `claude -p` to verify auth works (no cost, just a ping).
-    if claude_path:
-        try:
-            r = subprocess.run(
-                [cfg.claude_cli, "-p", "--output-format", "json", "--max-turns", "1", "say 'ok'"],
-                capture_output=True, text=True, timeout=60,
-            )
-            check(
-                "claude -p auth smoke",
-                r.returncode == 0,
-                r.stderr[:400] if r.stderr else f"exit={r.returncode}",
-            )
-        except subprocess.TimeoutExpired:
-            check("claude -p auth smoke", False, "timed out after 60s")
-        except Exception as e:
-            check("claude -p auth smoke", False, str(e))
+    if cfg.backend == "claude_cli":
+        claude_path = shutil.which(cfg.claude_cli)
+        check(f"{cfg.claude_cli} CLI on PATH", claude_path is not None, "install Claude Code CLI")
+        if claude_path:
+            try:
+                out = subprocess.run(
+                    [cfg.claude_cli, "--version"], capture_output=True, text=True, timeout=5
+                )
+                check(f"{cfg.claude_cli} --version", out.returncode == 0, out.stderr.strip())
+            except Exception as e:
+                check(f"{cfg.claude_cli} --version", False, str(e))
+            # Trivial `claude -p` to verify auth (no cost, just a ping).
+            try:
+                r = subprocess.run(
+                    [cfg.claude_cli, "-p", "--output-format", "json", "--max-turns", "1", "say 'ok'"],
+                    capture_output=True, text=True, timeout=60,
+                )
+                check(
+                    "claude -p auth smoke",
+                    r.returncode == 0,
+                    r.stderr[:400] if r.stderr else f"exit={r.returncode}",
+                )
+            except subprocess.TimeoutExpired:
+                check("claude -p auth smoke", False, "timed out after 60s")
+            except Exception as e:
+                check("claude -p auth smoke", False, str(e))
+    else:
+        print(f"  · backend-specific health checks for {cfg.backend!r} not implemented; skipping")
 
     from claude_p.auth import get_dashboard_password_hash
 

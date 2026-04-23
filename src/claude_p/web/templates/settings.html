@@ -40,7 +40,15 @@
   </div>
 </div>
 
-<h2>claude.ai integration</h2>
+<h2>Backends</h2>
+<p class="muted small" style="margin-bottom: 1rem">
+  Each backend has its own section below. The daemon runs whichever
+  backend <code>CLAUDE_P_BACKEND</code> selects (currently
+  <code>{{ backend }}</code>). Switching backends is a
+  <code>CLAUDE_P_BACKEND=…</code> env change + restart.
+</p>
+
+<h3>Setup Claude</h3>
 
 {% if last_ok_at and not last_error %}
 <div class="status ok" style="margin-bottom: 1rem">
@@ -79,4 +87,25 @@
   </div>
 </form>
 <form id="clear-form" method="post" action="/settings/claude-ai/clear" style="display:none"></form>
+
+<h3 style="margin-top: 2rem">Setup OpenAI</h3>
+<div class="status" style="margin-bottom: 1rem"><span class="dot"></span>coming soon</div>
+<p class="muted small" style="margin-bottom: 1rem">
+  Placeholder for an OpenAI / Codex backend. No wiring yet — nothing you
+  paste here is saved or used.
+</p>
+<div class="spaced" style="max-width: 640px; opacity: 0.5">
+  <div class="field">
+    <label>API key</label>
+    <input type="password" disabled placeholder="sk-…" />
+  </div>
+  <div class="field">
+    <label>Base URL</label>
+    <input type="text" disabled placeholder="https://api.openai.com/v1" />
+  </div>
+  <div class="field">
+    <label>Model</label>
+    <input type="text" disabled placeholder="gpt-5 / codex-…" />
+  </div>
+</div>
 {% endblock %}

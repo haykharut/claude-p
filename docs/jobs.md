@@ -138,6 +138,14 @@ The helper parses `stream-json`, writes `trace.jsonl`, and increments
 the ledger automatically. Prefer this unless you need a flag it
 doesn't expose.
 
+Under the hood, `run_claude()` dispatches to whichever
+[`Backend`](../src/claude_p/backends/) the daemon is configured for —
+`claude_cli` (default), or a future `codex_cli` / HTTP API. Your job
+code doesn't care: the signature and the returned result object are
+the same across backends. Backend-specific kwargs (`allowed_tools`,
+`permission_mode`, `add_dir`) are forwarded to the claude backend and
+ignored by others.
+
 ### The escape hatch: shell out to `claude` directly
 
 For flags `run_claude` doesn't cover (`--json-schema`, custom

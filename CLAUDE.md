@@ -20,8 +20,16 @@ Single Python package (`src/claude_p/`) deployed as a FastAPI daemon:
 - `registry.py` — watchfiles → in-memory `dict[slug, RegistryEntry]` + DB
 - `scheduler.py` — croniter poller, 10s tick, spawns runs via executor
 - `executor.py` — asyncio subprocess, uv/shell runtimes, output copy, ledger roll-up
-- `claude_runner.py` — `claude -p` wrapper + stream-json parser. **Always** parses
-  `total_cost_usd` and `usage.{input,output,cache_read_input,cache_creation_input}_tokens`
+- `backends/` — pluggable LLM backend surface. `base.py` defines the
+  `Backend` ABC (one method: `async stream() -> AsyncIterator
+  [BackendEvent]`) and the shared `fold_event` that turns canonical
+  events into a `BackendResult`. `claude_cli.py` is the reference
+  implementation wrapping `claude -p` (argv builder + stream-json →
+  canonical event translation). Pick one via `CLAUDE_P_BACKEND`
+  (default `claude_cli`). To add a new backend: new file under
+  `backends/`, register in `backends/__init__._BACKENDS`, done.
+  **Always** parses `total_cost_usd` and
+  `usage.{input,output,cache_read_input,cache_creation_input}_tokens`
   from the final `result` event.
 - `scaffolder` lives in `api/scaffold.py` (historic reasons; it's really part of
   the core, just exposed via HTTP)
@@ -44,9 +52,9 @@ These are non-negotiable. If you need to break one, say why out loud first.
 
 Stream-json auth path depends on non-bare mode. `--bare` ignores both
 `~/.claude/` OAuth creds and `CLAUDE_CODE_OAUTH_TOKEN`. The helper
-`claude_runner.build_claude_argv()` is the single place that constructs
-the argv — use it. If you invent a second place, make that place go
-through it.
+`backends.claude_cli.build_claude_argv()` is the single place that
+constructs the argv — use it. If you invent a second place, make that
+place go through it.
 
 ### 2. Schema changes go through a new migration file
 
@@ -135,8 +143,9 @@ Fields (all optional, unknown keys ignored):
 The env vars `CLAUDE_P_RUN_ID` and `CLAUDE_P_JOB_DIR` are always set by
 the executor. If either is missing, the job is running locally and
 should no-op the ledger write. Reference impl: see
-`claude_p.claude_runner._append_ledger` and the inline helper
-`_report_to_ledger` in jobs/job-search/scripts/scout/classify.py.
+`claude_p._maybe_write_ledger` (in `src/claude_p/__init__.py`) and the
+inline helper `_report_to_ledger` in
+`jobs/job-search/scripts/scout/classify.py`.
 
 ## Things that would be nice but aren't in v1
 

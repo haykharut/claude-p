@@ -25,20 +25,25 @@
   function summarize(data) {
     try {
       const e = JSON.parse(data);
-      if (e.type === 'system' && e.subtype === 'init') return 'session started';
-      if (e.type === 'assistant') {
-        const blocks = (e.message && e.message.content) || [];
-        for (const b of blocks) {
-          if (b.type === 'text') return '💬 ' + b.text.slice(0, 500);
-          if (b.type === 'tool_use') return '→ ' + b.name + ' ' + JSON.stringify(b.input).slice(0, 200);
-        }
-        return '(assistant)';
+      const d = e.data || {};
+      switch (e.kind) {
+        case 'session_start':
+          return 'session started';
+        case 'assistant_text_delta':
+          return '💬 ' + (d.text || '').slice(0, 500);
+        case 'tool_use':
+          return '→ ' + (d.name || '') + ' ' + JSON.stringify(d.input || {}).slice(0, 200);
+        case 'tool_result':
+          return '(tool result)' + (d.output_preview ? ' — ' + d.output_preview.slice(0, 200) : '');
+        case 'rate_limit':
+          return '⏱ rate limit · ' + ((d.info && d.info.rateLimitType) || '');
+        case 'result':
+          return '✓ finished · $' + (d.cost_usd || 0).toFixed(4);
+        case 'raw':
+          return '(raw) ' + JSON.stringify(d.payload || {}).slice(0, 200);
+        default:
+          return e.kind || JSON.stringify(e).slice(0, 200);
       }
-      if (e.type === 'user') return '(tool result)';
-      if (e.type === 'result') {
-        return '✓ finished · $' + (e.total_cost_usd || 0).toFixed(4);
-      }
-      return e.type || JSON.stringify(e).slice(0, 200);
     } catch (err) {
       return data.slice(0, 200);
     }

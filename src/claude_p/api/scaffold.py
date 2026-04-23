@@ -14,8 +14,9 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sse_starlette.sse import EventSourceResponse
 
 from claude_p import queries
-from claude_p.claude_runner import ClaudeResult, apply_event, build_claude_argv
+from claude_p.backends import fold_event, get_backend
 from claude_p.db import connect
+from claude_p.models import BackendResult, RunOptions
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -39,7 +40,7 @@ class Scaffold:
     done: asyncio.Event = field(default_factory=asyncio.Event)
     exit_code: int | None = None
     error: str | None = None
-    result: ClaudeResult = field(default_factory=ClaudeResult)
+    result: BackendResult = field(default_factory=BackendResult)
 
 
 def _state(request: Request):
@@ -148,54 +149,29 @@ async def _run_scaffold(cfg, scaffold: Scaffold) -> None:
         "Create the complete job folder now. When done, summarize what you built in a final message."
     )
 
-    argv = build_claude_argv(
-        prompt,
-        claude_cli=cfg.claude_cli,
-        allowed_tools=["Read", "Write", "Edit", "Bash", "WebFetch"],
-        permission_mode="dontAsk",
-        max_budget_usd=cfg.scaffolder_max_budget_usd,
-        add_dir=[str(scaffold.job_dir)],
+    backend = get_backend(cfg)
+    options = RunOptions(
+        prompt=prompt,
         system_prompt=system_prompt,
+        max_budget_usd=cfg.scaffolder_max_budget_usd,
+        cwd=str(scaffold.job_dir),
+        backend_options={
+            "allowed_tools": ["Read", "Write", "Edit", "Bash", "WebFetch"],
+            "permission_mode": "dontAsk",
+            "add_dir": [str(scaffold.job_dir)],
+        },
     )
+
     try:
-        proc = await asyncio.create_subprocess_exec(
-            *argv,
-            cwd=str(scaffold.job_dir),
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
+        async for event in backend.stream(options):
+            fold_event(scaffold.result, event)
+            await scaffold.queue.put(event.model_dump())
+        scaffold.exit_code = 1 if scaffold.result.is_error else 0
+        if scaffold.result.is_error and scaffold.result.stop_reason:
+            scaffold.error = scaffold.result.stop_reason[:1000]
     except FileNotFoundError as e:
-        scaffold.error = f"claude CLI not found: {e}"
-        scaffold.done.set()
-        return
-
-    async def pump_stdout():
-        assert proc.stdout is not None
-        async for raw in proc.stdout:
-            line = raw.decode(errors="replace").strip()
-            if not line:
-                continue
-            try:
-                event = json.loads(line)
-                apply_event(scaffold.result, event)
-            except json.JSONDecodeError:
-                event = {"type": "raw", "text": line}
-            await scaffold.queue.put(event)
-
-    async def pump_stderr():
-        assert proc.stderr is not None
-        buf = b""
-        while True:
-            chunk = await proc.stderr.read(4096)
-            if not chunk:
-                break
-            buf += chunk
-        if buf:
-            scaffold.error = (buf.decode(errors="replace") or "").strip()[:1000] or None
-
-    try:
-        await asyncio.gather(pump_stdout(), pump_stderr())
-        scaffold.exit_code = await proc.wait()
+        scaffold.error = f"backend CLI not found: {e}"
+        scaffold.exit_code = -1
     except Exception as e:
         scaffold.error = str(e)
         scaffold.exit_code = -1

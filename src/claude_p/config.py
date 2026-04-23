@@ -19,6 +19,10 @@ class Config(BaseSettings):
     dashboard_password_hash: str = ""
     claude_cli: str = "claude"
     uv_cli: str = "uv"
+    # Which Backend implementation to load. See src/claude_p/backends/ for
+    # the registry. Default is the claude CLI wrapper; set e.g.
+    # CLAUDE_P_BACKEND=codex_cli (once implemented) to swap.
+    backend: str = "claude_cli"
 
     @property
     def db_path(self) -> Path:

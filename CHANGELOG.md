@@ -13,6 +13,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   changes. Templates also hot-reload via Jinja's mtime check.
 - `CHANGELOG.md` (this file) and `CLAUDE.md` with project conventions for
   contributors (human and AI).
+- Pluggable LLM backend surface (`claude_p.backends`). Each backend
+  implements one method — `async def stream(options) -> AsyncIterator
+  [BackendEvent]` — and registers under a string key. Result folding,
+  sync wrappers, and ledger writes are shared across backends, so
+  swapping to `codex exec` or an HTTP API is one new file plus a config
+  flip. New env var `CLAUDE_P_BACKEND` (default: `claude_cli`).
+- `/settings` page now has **Setup Claude** and **Setup OpenAI**
+  sections. Setup OpenAI is an inert placeholder for now — scaffolding
+  for a future OpenAI/Codex backend.
+- `tests/test_backend_protocol.py` — a FakeBackend proves the protocol
+  (any backend yielding canonical events gets result folding for free).
+
+### Changed
+- `claude_runner.py` removed; its logic split between
+  `backends/claude_cli.py` (CLI + stream-json parsing) and
+  `backends/base.py` (folding). `ClaudeResult` → `BackendResult` (now a
+  Pydantic model per the cross-module-data rule). `run_claude()`'s
+  public signature is unchanged; claude-specific kwargs (`allowed_tools`,
+  `permission_mode`, `add_dir`) now land in
+  `RunOptions.backend_options`.
+- Scaffolder SSE events changed shape — browser now sees canonical
+  `{kind, data}` events, not raw stream-json. Template updated to
+  match; any external consumer of the SSE stream will need to adapt.
+- `run_claude(on_event=...)` callback now receives canonical
+  `{kind, data}` dicts, not raw stream-json. If a job inspected
+  `ev["type"]` or `ev["message"]["content"]`, switch to `ev["kind"]`
+  and the `ev["data"]` fields listed in `backends/base.py` docstring.
+  No job in this repo used `on_event` at the time of the refactor.
 
 ### Changed
 - `/settings` save now **synchronously** runs one probe against the

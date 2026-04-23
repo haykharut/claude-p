@@ -48,6 +48,7 @@ async def settings_page(request: Request):
             "dashboard_urls": dashboard_urls(host),
             "webdav_urls": webdav_urls(host),
             "bind_host": st.cfg.bind_host,
+            "backend": st.cfg.backend,
             "active": "settings",
         },
     )
