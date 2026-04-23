@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`scripts/setup-sync.sh` — one-command Syncthing pairing.** SSHs
+  into the server, exchanges device IDs via the Syncthing REST API,
+  creates the shared folder on both sides, and sets ignore patterns.
+  No browser tabs needed.
 - **Syncthing setup guide in `docs/filesystem.md`.** Full walkthrough
   for bidirectional sync between a dev laptop and the server, including
   ignore patterns for `.venv`/`__pycache__`/`*.pyc` (platform-specific

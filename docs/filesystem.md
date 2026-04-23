@@ -117,60 +117,49 @@ appear on the server in seconds (and server-side outputs to sync back),
 use [Syncthing](https://syncthing.net/). It runs on both machines and
 keeps folders in sync bidirectionally.
 
-### Setup (one-time, ~5 minutes)
+### Setup (one-time, ~2 minutes)
 
-**Mac:**
+Install Syncthing on both sides:
 
 ```bash
+# Mac
 brew install syncthing
 brew services start syncthing
-# Web UI at http://localhost:8384
-```
 
-**Ubuntu server:**
-
-```bash
+# Ubuntu server (SSH in first)
 sudo apt install syncthing -y
 systemctl --user enable --now syncthing
-sudo loginctl enable-linger $USER   # keeps it running after SSH logout
+sudo loginctl enable-linger $USER
 ```
 
-To access the server's Syncthing UI from your Mac, forward the port:
+Then pair them with one command from your Mac:
 
 ```bash
-ssh -L 8385:localhost:8384 <user>@<server-ip>
-# Server UI at http://localhost:8385 (keep open until pairing is done)
+./scripts/setup-sync.sh user@server-ip
 ```
 
-### Pairing
+The script SSHs into the server, exchanges device IDs, creates the
+shared folder on both sides, and sets ignore patterns — no browser
+tabs, no manual copy-pasting.
 
-1. **Server UI** (`:8385`): Actions → Show ID. Copy it.
-2. **Mac UI** (`:8384`): Add Remote Device → paste the ID → Save.
-3. **Server UI**: accept the new device when prompted.
-4. **Mac UI**: Add Folder →
-   - Path: `~/claudectl/fs/jobs`
-   - Sharing tab: check the server device
-5. **Server UI**: accept the shared folder, set path to
-   `~/claudectl/fs/jobs`.
+### What the script does
 
-### Ignore patterns
+1. Reads Syncthing API keys from both machines (local config + SSH)
+2. Adds each device to the other's Syncthing config
+3. Creates `~/claudectl/fs/jobs/` as a bidirectional shared folder
+4. Sets ignore patterns: `.venv`, `__pycache__`, `*.pyc`, `.ruff_cache`
 
-On either side, open the folder settings → Ignore Patterns and add:
+### Manual pairing (alternative)
 
-```
-.venv
-__pycache__
-*.pyc
-.ruff_cache
-```
+If you prefer the browser UI: forward the server's Syncthing port
+(`ssh -L 8385:localhost:8384 user@server-ip`), then pair via
+`http://localhost:8384` (local) and `http://localhost:8385` (server).
 
-`.venv` is platform-specific (Linux vs macOS binaries) — each side
-creates its own. `__pycache__` and `.pyc` are also
-platform/version-specific. Syncing them causes `Exec format error` on
-the other side.
+### Why the ignore patterns matter
 
-After pairing, the SSH tunnel is no longer needed — Syncthing
-discovers peers over the LAN automatically. Close it and forget it.
+`.venv` contains platform-specific binaries (Linux vs macOS) — each
+side creates its own. `__pycache__` and `*.pyc` are also
+platform/version-specific. Syncing them causes `Exec format error`.
 
 ## Common issues
 
