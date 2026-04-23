@@ -24,6 +24,8 @@ def test_parse_duration():
     assert parse_duration("10m") == 600.0
     assert parse_duration("2h") == 7200.0
     assert parse_duration("500ms") == 0.5
+    assert parse_duration("1d") == 86400.0
+    assert parse_duration("2w") == 2 * 604800.0
     with pytest.raises(ValueError):
         parse_duration("forever")
 
@@ -102,3 +104,80 @@ def test_llm_options_is_opaque_at_parse_time():
     )
     assert m.llm is not None
     assert m.llm.options == {"anything": "goes", "here": 42}
+
+
+# --- auto schedule -------------------------------------------------------
+
+
+def test_schedule_auto_requires_auto_block():
+    with pytest.raises(ValidationError, match="requires an `auto:` block"):
+        Manifest.model_validate({"name": "j", "entrypoint": "x.py", "schedule": "auto"})
+
+
+def test_auto_block_requires_schedule_auto():
+    with pytest.raises(ValidationError, match="only valid when `schedule: auto`"):
+        Manifest.model_validate({"name": "j", "entrypoint": "x.py", "auto": {"every": "1d"}})
+
+
+def test_schedule_auto_with_valid_block():
+    m = Manifest.model_validate(
+        {
+            "name": "j",
+            "entrypoint": "x.py",
+            "schedule": "auto",
+            "auto": {"every": "1d", "deadline": "2d", "priority": "low"},
+        }
+    )
+    assert m.schedule == "auto"
+    assert m.auto is not None
+    assert m.auto.every == "1d"
+    assert m.auto.deadline == "2d"
+    assert m.auto.priority == "low"
+    assert m.auto.every_seconds == 86400.0
+    assert m.auto.deadline_seconds == 2 * 86400.0
+
+
+def test_auto_block_defaults():
+    m = Manifest.model_validate(
+        {
+            "name": "j",
+            "entrypoint": "x.py",
+            "schedule": "auto",
+            "auto": {"every": "6h"},
+        }
+    )
+    assert m.auto is not None
+    assert m.auto.priority == "normal"
+    assert m.auto.deadline is None
+    # Default deadline is 2 × every.
+    assert m.auto.deadline_seconds == 2 * 6 * 3600.0
+
+
+def test_auto_block_rejects_bad_duration():
+    with pytest.raises(ValidationError):
+        Manifest.model_validate(
+            {
+                "name": "j",
+                "entrypoint": "x.py",
+                "schedule": "auto",
+                "auto": {"every": "forever"},
+            }
+        )
+
+
+def test_auto_block_rejects_bad_priority():
+    with pytest.raises(ValidationError):
+        Manifest.model_validate(
+            {
+                "name": "j",
+                "entrypoint": "x.py",
+                "schedule": "auto",
+                "auto": {"every": "1d", "priority": "urgent"},
+            }
+        )
+
+
+def test_schedule_still_accepts_cron():
+    m = Manifest.model_validate({"name": "j", "entrypoint": "x.py", "schedule": "0 9 * * *"})
+    assert m.schedule == "0 9 * * *"
+    assert m.auto is None

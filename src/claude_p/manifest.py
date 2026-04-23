@@ -10,7 +10,7 @@ from croniter import croniter
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-_]{0,62}$")
-DURATION_RE = re.compile(r"^(\d+)(ms|s|m|h)$")
+DURATION_RE = re.compile(r"^(\d+)(ms|s|m|h|d|w)$")
 
 
 class ManifestError(Exception):
@@ -20,10 +20,17 @@ class ManifestError(Exception):
 def parse_duration(s: str) -> float:
     m = DURATION_RE.match(s.strip())
     if not m:
-        raise ValueError(f"invalid duration: {s!r} (use e.g. '30s', '10m', '1h', '500ms')")
+        raise ValueError(f"invalid duration: {s!r} (use e.g. '30s', '10m', '1h', '1d', '1w', '500ms')")
     n = int(m.group(1))
     unit = m.group(2)
-    return {"ms": n / 1000.0, "s": float(n), "m": float(n * 60), "h": float(n * 3600)}[unit]
+    return {
+        "ms": n / 1000.0,
+        "s": float(n),
+        "m": float(n * 60),
+        "h": float(n * 3600),
+        "d": float(n * 86400),
+        "w": float(n * 604800),
+    }[unit]
 
 
 class ParamSpec(BaseModel):
@@ -87,6 +94,41 @@ class NotifyConfig(BaseModel):
     on_failure: str = "dashboard"
 
 
+class AutoConfig(BaseModel):
+    """How an `schedule: auto` job should be paced.
+
+    Only `every` is required. The scheduler decides the actual fire time
+    by combining this with current 5h / weekly utilization, time-of-day,
+    and per-job cost estimates. See `docs/jobs.md` for the worked flow.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    every: str
+    deadline: str | None = None
+    priority: Literal["low", "normal"] = "normal"
+
+    @field_validator("every", "deadline")
+    @classmethod
+    def _validate_duration(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        parse_duration(v)
+        return v
+
+    @property
+    def every_seconds(self) -> float:
+        return parse_duration(self.every)
+
+    @property
+    def deadline_seconds(self) -> float:
+        # Default: 2 × every. The soft deadline for force-firing a run
+        # we've been deferring.
+        if self.deadline is None:
+            return self.every_seconds * 2
+        return parse_duration(self.deadline)
+
+
 class Manifest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -95,6 +137,8 @@ class Manifest(BaseModel):
     runtime: Literal["uv", "shell"] = "uv"
     entrypoint: str
     schedule: str | None = None
+    # Only valid when `schedule: auto`; forbidden otherwise.
+    auto: AutoConfig | None = None
     timeout: str = "10m"
     params: dict[str, ParamSpec] = Field(default_factory=dict)
     env: list[str] = Field(default_factory=list)
@@ -121,8 +165,10 @@ class Manifest(BaseModel):
     def _validate_schedule(cls, v: str | None) -> str | None:
         if v is None:
             return None
+        if v == "auto":
+            return v
         if not croniter.is_valid(v):
-            raise ValueError(f"invalid cron expression: {v!r}")
+            raise ValueError(f"invalid cron expression: {v!r} (or use 'auto')")
         return v
 
     @field_validator("timeout")
@@ -137,6 +183,14 @@ class Manifest(BaseModel):
             raise ValueError("entrypoint must be relative to the job folder")
         if ".." in Path(self.entrypoint).parts:
             raise ValueError("entrypoint may not contain '..'")
+        return self
+
+    @model_validator(mode="after")
+    def _check_auto_consistency(self) -> Manifest:
+        if self.schedule == "auto" and self.auto is None:
+            raise ValueError("`schedule: auto` requires an `auto:` block with at least `every`")
+        if self.schedule != "auto" and self.auto is not None:
+            raise ValueError("`auto:` block is only valid when `schedule: auto`")
         return self
 
     @property

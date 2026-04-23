@@ -100,6 +100,12 @@ class Registry:
             )
             if manifest is None or manifest.schedule is None:
                 queries.delete_schedule(conn, slug)
+            elif manifest.schedule == "auto":
+                # Auto mode: the scheduler's per-tick decision function owns
+                # fire timing. No next_fire_at; store the serialized config
+                # so the scheduler can read it without the in-memory registry.
+                assert manifest.auto is not None  # enforced by manifest validator
+                queries.upsert_auto_schedule(conn, slug, manifest.auto.model_dump_json())
             else:
                 next_fire = croniter(manifest.schedule, now).get_next(datetime)
                 queries.upsert_schedule(conn, slug, manifest.schedule, next_fire)

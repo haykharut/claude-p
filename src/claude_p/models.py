@@ -103,6 +103,11 @@ class Run(BaseModel):
     cache_creation_tokens: int = 0
     error: str | None = None
     run_dir: str
+    # claude.ai poller snapshots at run boundaries. NULL when poller off.
+    five_hour_util_at_start: float | None = None
+    five_hour_util_at_end: float | None = None
+    seven_day_util_at_start: float | None = None
+    seven_day_util_at_end: float | None = None
 
 
 class JobState(BaseModel):
@@ -117,15 +122,21 @@ class JobState(BaseModel):
     manifest_error: str | None = None
 
 
+ScheduleMode = Literal["cron", "auto"]
+
+
 class Schedule(BaseModel):
     """One row of the `schedules` table."""
 
     model_config = ConfigDict(from_attributes=True)
 
     slug: str
-    cron: str
+    cron: str | None = None
     next_fire_at: datetime | None = None
     last_fire_at: datetime | None = None
+    mode: ScheduleMode = "cron"
+    auto_config_json: str | None = None
+    deferred_since: datetime | None = None
 
 
 class WindowTotals(BaseModel):
@@ -148,6 +159,19 @@ class JobRollup(BaseModel):
     avg_input_tokens: float = 0.0
     avg_output_tokens: float = 0.0
     last_run_at: datetime | None = None
+
+
+class JobCostEstimate(BaseModel):
+    """Empirical per-job footprint, used by the auto-schedule algorithm to
+    predict "if I fire this job now, how much does it cost?" before firing."""
+
+    slug: str
+    sample_size: int = 0
+    avg_cost_usd: float = 0.0
+    p90_cost_usd: float = 0.0
+    median_5h_util_delta: float | None = None
+    median_7d_util_delta: float | None = None
+    is_cold_start: bool = True
 
 
 class RegistryEntry(BaseModel):
@@ -177,6 +201,9 @@ class RunSummary(BaseModel):
     last_run_cost: float = 0.0
     last_run_at: datetime | None = None
     running: bool = False
+    # Auto-schedule state. `mode` is 'cron', 'auto', or 'manual' (no schedule).
+    mode: Literal["cron", "auto", "manual"] = "manual"
+    deferred_since: datetime | None = None
 
 
 class SettingKV(BaseModel):
@@ -256,6 +283,55 @@ CLAUDE_AI_LAST_OK_AT_SETTING: str = "claude_ai_last_ok_at"
 
 WEEKLY_BUDGET_SETTING: str = "weekly_budget_usd"
 DASHBOARD_PASSWORD_SETTING: str = "dashboard_password_hash"
+
+# claude.ai /usage window keys the auto-schedule algorithm reads. If a
+# future Anthropic deploy moves the signal (e.g. `claude -p` consumption
+# lands in a different window_key), change these two constants only.
+# See the plan's "Empirical check" note for the verification procedure.
+FIVE_HOUR_WINDOW_KEY: str = "five_hour"
+SEVEN_DAY_WINDOW_KEY: str = "seven_day"
+
+# Auto-schedule settings (migration 005 seeds defaults).
+AUTO_DAYTIME_START_LOCAL_SETTING: str = "auto_daytime_start_local"
+AUTO_DAYTIME_END_LOCAL_SETTING: str = "auto_daytime_end_local"
+AUTO_LOCAL_TZ_SETTING: str = "auto_local_tz"
+AUTO_5H_UTIL_DAY_NORMAL_SETTING: str = "auto_5h_util_day_normal"
+AUTO_5H_UTIL_NIGHT_NORMAL_SETTING: str = "auto_5h_util_night_normal"
+AUTO_5H_UTIL_DAY_LOW_SETTING: str = "auto_5h_util_day_low"
+AUTO_5H_UTIL_NIGHT_LOW_SETTING: str = "auto_5h_util_night_low"
+AUTO_WEEKLY_SKIP_ABOVE_SETTING: str = "auto_weekly_skip_above"
+AUTO_WEEKLY_BUDGET_GUARD_SETTING: str = "auto_weekly_budget_guard"
+AUTO_MIN_SECONDS_BETWEEN_FIRES_SETTING: str = "auto_min_seconds_between_fires"
+AUTO_SAFETY_FACTOR_SETTING: str = "auto_safety_factor"
+AUTO_COLDSTART_5H_UTIL_DELTA_SETTING: str = "auto_coldstart_5h_util_delta"
+AUTO_COLDSTART_7D_UTIL_DELTA_SETTING: str = "auto_coldstart_7d_util_delta"
+AUTO_COLDSTART_COST_USD_SETTING: str = "auto_coldstart_cost_usd"
+AUTO_COLDSTART_MIN_SAMPLES_SETTING: str = "auto_coldstart_min_samples"
+
+
+class AutoSettings(BaseModel):
+    """Flat snapshot of all auto_* settings, loaded once per scheduler tick."""
+
+    daytime_start_local: str = "07:00"
+    daytime_end_local: str = "22:00"
+    local_tz: str = "UTC"
+    util_5h_day_normal: float = 60.0
+    util_5h_night_normal: float = 85.0
+    util_5h_day_low: float = 30.0
+    util_5h_night_low: float = 70.0
+    weekly_skip_above: float = 90.0
+    weekly_budget_guard: float = 1.0
+    min_seconds_between_fires: float = 120.0
+    safety_factor: float = 1.25
+    coldstart_5h_util_delta: float = 10.0
+    coldstart_7d_util_delta: float = 2.0
+    coldstart_cost_usd: float = 0.25
+    coldstart_min_samples: int = 3
+
+    def threshold_5h(self, *, nighttime: bool, priority: str) -> float:
+        if priority == "low":
+            return self.util_5h_night_low if nighttime else self.util_5h_day_low
+        return self.util_5h_night_normal if nighttime else self.util_5h_day_normal
 
 
 def as_run(row) -> Run:

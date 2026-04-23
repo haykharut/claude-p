@@ -8,6 +8,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`schedule: auto` mode for jobs.** Instead of a cron expression, a
+  job can declare a cadence (`every: 1d`) and optional priority and let
+  the scheduler decide *when* to fire based on current 5h / weekly
+  Claude utilization, historical per-job cost and utilization impact,
+  time of day, and remaining weekly USD budget. The goal is to fill
+  quiet quota windows — nighttime, low utilization — without busting
+  your session or weekly budget. Soft deadline (default 2× cadence)
+  guarantees forward progress; firing is skipped when any threshold
+  would be breached.
+  - New `auto:` block in `job.yaml` with `every`, `deadline`, `priority`
+    (`low` | `normal`).
+  - Per-run claude.ai utilization snapshots (`five_hour_util_at_start/end`,
+    `seven_day_util_at_start/end`) so each job's own footprint is
+    learned from its last 10 runs (median delta). Cold-start defaults
+    kick in when sample size < `auto_coldstart_min_samples` (default 3).
+  - ~14 new `auto_*` global settings (daytime window, local TZ,
+    day/night 5h thresholds × normal/low priority, weekly skip cap,
+    weekly budget guard fraction, safety factor, cold-start defaults,
+    fleet `min_seconds_between_fires` cooldown). All have sane defaults
+    seeded by migration 005; tunable at `/settings` via the new
+    `POST /settings/auto` form endpoint.
+  - Dashboard: auto jobs render their cadence in the schedule column
+    (`auto (every 1d)`), show a "deferred Xs" chip when the scheduler
+    has been waiting for a good slot, and the detail page includes a
+    **Cost estimate** card with avg/p90 cost and predicted 5h/7d
+    utilization impact (flagged as cold-start until the job has run
+    enough times to learn).
+  - `docs/jobs.md` section "Auto schedule: fill unused quota, not
+    wall-clock slots" with a worked example.
+- **Migration `005_auto_schedule.sql`** — rebuilds `schedules` to make
+  `cron` nullable (auto mode stores its config in the new
+  `auto_config_json` column) and adds `mode`, `auto_config_json`,
+  `deferred_since`. Adds the four snapshot columns on `runs`. Seeds
+  default values for all new `auto_*` settings keys.
+- **`claude_p.auto_schedule`** — pure-Python decision module. `decide_one`
+  and `decide_batch` take dataclass inputs and return verdicts
+  (`fire` | `defer` | `skip`) with human-readable reasons. The
+  scheduler wires DB reads, settings, and state transitions; the
+  decision function itself is trivially unit-testable without a DB.
+- **Per-job cost estimates** via `queries.auto_job_cost_estimate()` —
+  learned from the runs table, median-based for robustness to noisy
+  concurrent-claude.ai-chat usage, falls back to cold-start values
+  per-field when individual snapshots are missing.
+
+### Known limitations
+- **Which `window_key` tracks `claude -p` consumption is not
+  empirically verified yet.** The algorithm reads `five_hour` and
+  `seven_day` (constants `FIVE_HOUR_WINDOW_KEY` / `SEVEN_DAY_WINDOW_KEY`
+  in `models.py`). If `claude -p` actually lands in
+  `seven_day_oauth_apps` or a different key, decisions will be based
+  on the wrong signal. To verify: enable the claude.ai poller, run a
+  `claude -p` job, diff `list_claude_ai_windows(conn)` before/after,
+  confirm which key moves. If it's different, change the two constants.
+  Tests feed synthetic values and can't catch this.
 - **Per-job LLM config in `job.yaml`** via a new top-level `llm:`
   block. Carries `backend`, `model`, `max_budget_usd`, `max_turns`,
   `timeout_seconds`, `system_prompt`, and a backend-native `options:`

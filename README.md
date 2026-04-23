@@ -2,9 +2,14 @@
 
 # claude-p
 
-### Your own fleet of AI agents, running on hardware you already own — on the Claude subscription you already pay for.
+### Stop leaving Claude tokens on the table.
 
-[Why](#why-this-exists) · [What you can build](#what-people-build-with-it) · [How it works](#how-it-works) · [Install](#install) · [Docs](./docs/)
+For people on a Claude subscription (especially Max) whose 5-hour
+window sits mostly idle — at 3am, during meetings, all the hours
+you're not at the keyboard. claude-p fills those gaps with batch work
+you actually want done, without ever busting your session.
+
+[Why](#why-this-exists) · [The auto scheduler](#the-auto-scheduler-the-whole-point) · [What people build](#what-people-build-with-it) · [Install](#install) · [Docs](./docs/)
 
 </div>
 
@@ -14,19 +19,89 @@
 
 ## Why this exists
 
-You're already paying $20–$200/month for Claude Code. The same
-`claude -p` that helps at the keyboard can run unattended on a cron —
-summarizing, watching, filing, emailing, scraping, digesting — if you
-give it a place to live.
+You pay $100–$200/month for Claude Max. Your 5-hour window refills
+while you sleep. By day, when you're coding, it's under pressure. By
+night, it's empty. Every hour you're not at the keyboard is quota you
+paid for and didn't use — and unused quota doesn't roll over.
 
-**claude-p is that place.** One Python binary, a SQLite file, and a
-folder you drop jobs into. Runs on 4 GB of RAM, on a Mac mini in a
-closet or the Ubuntu laptop you retired last year. No cloud, no
-per-agent licensing, no YAML DAGs to learn, no vendor to trust with
-your data.
+**claude-p is a home-server job runner that puts those unused hours
+to work.** Drop a folder with a `main.py`, tag it `schedule: auto`,
+and let the scheduler decide when to fire it — based on your current
+5-hour and 7-day utilization, time of day, and each job's historical
+cost, learned from its own run history. Hot window? It defers. Quiet
+window at 02:00? It runs.
 
-> Drop a folder → it becomes a scheduled agent. Every token is
-> cost-tracked. Edit files over WebDAV from your phone.
+Three things make it tick:
+
+1. **Auto scheduling that treats your subscription like off-peak
+   electricity** — fire when quota is cheap, defer when it's tight,
+   skip when the weekly cap is blown. Details below.
+2. **Folder-as-job.** A job is a directory with a `main.py` and a
+   `job.yaml`. `main.py` is arbitrary Python — call Claude, call
+   OpenAI, hit an API, read a CSV, write a file, shell out to `ffmpeg`.
+   No DAG engine, no SaaS-proprietary step format, no YAML-as-code.
+   Your code, your rules. You drop the folder, it becomes a scheduled
+   agent in two seconds.
+3. **Lives on hardware you already own.** One Python binary, a SQLite
+   file, 4 GB of RAM. Mac mini in a closet, retired Ubuntu laptop.
+   No cloud, no per-agent licensing, no vendor to trust with your
+   data, no webhook to churn off.
+
+> Drop a folder → schedule: auto → claude-p burns your idle quota on
+> your behalf. Edit files from your phone over WebDAV. Every token is
+> cost-tracked.
+
+## The auto scheduler (the whole point)
+
+Cron is fine if you need a run at exactly 09:00. Most batch work
+doesn't. "Run this roughly once a day, when my Claude session isn't
+under load" is almost always what you actually want.
+
+```yaml
+schedule: auto
+auto:
+  every: 1d          # cadence target (1h / 6h / 1d / 1w)
+  deadline: 2d       # optional; force-fire if deferred longer than this
+  priority: low      # optional; 'low' waits harder for a cheap slot
+```
+
+On every 10-second tick the scheduler asks, for each due auto job:
+*would firing this specific job right now push any quota past a
+threshold?* If yes, defer. If no, fire.
+
+It looks at:
+
+- **Your current 5-hour window utilization** (day/night thresholds
+  differ — night is permissive, day is strict).
+- **Your 7-day utilization** — a hard-ish cap; firing won't happen
+  if it would push the weekly window over.
+- **Your weekly USD spend vs. `weekly_budget_usd`** — the job's own
+  historical cost (avg of its last 10 runs) is added before comparing,
+  so we don't fire runs we know would bust the budget.
+- **Time of day** in your local timezone.
+- **Soft deadline.** If we've been deferring a cadence period longer
+  than `deadline` (default 2× cadence), fire anyway. Forward progress
+  beats perfect timing.
+
+**It learns each job's footprint.** Before/after snapshots of your
+5-hour and 7-day utilization are taken at every run — the scheduler
+uses the median delta of the last 10 runs of *this specific job* to
+predict "if I fire it now, where does utilization end up?" Cold start
+(fewer than 3 runs) falls back to conservative defaults.
+
+**No claude.ai cookie? Still works.** Without live utilization data,
+the scheduler falls back to ledger-only signals: weekly USD vs.
+budget, time of day, cadence. Less precise, but opt-in precision, not
+a hard requirement.
+
+**Worked example.** A `priority: low, every: 1d` job on a weekday:
+
+- 10:15 local, 5h utilization 58%. Daytime-low threshold is 30% →
+  **defer**. Dashboard shows "deferred 14s ago."
+- 23:40 local, 5h utilization 11%. Nighttime-low threshold is 70% →
+  **fire.** The run starts; you wake up to the output.
+
+Full details: [docs/jobs.md §Auto schedule](./docs/jobs.md#auto-schedule-fill-unused-quota-not-wall-clock-slots).
 
 ## What people build with it
 
@@ -51,12 +126,14 @@ Each of these is ~50 lines of Python in a single `main.py`.
 
 ## Who it's for
 
+- **Claude Max subscribers** who want a return on their $100–$200/mo
+  beyond "fancy autocomplete while I'm at the keyboard." If your 5-hour
+  window spends most of its lifetime half-empty, that's quota you paid
+  for — claude-p burns it on your behalf.
 - **Indie hackers and homelab folk** who want the AI-agent future
   without renting a Kubernetes cluster to get there.
 - **Engineers tired of paying Zapier / n8n** for what Claude can already
   do, if only something would babysit it.
-- **People on a $200 Claude Max plan** who want more return on that
-  spend than "fancy autocomplete while I'm at the keyboard."
 - **Builders of one-person tools** who don't want Docker, Kubernetes,
   or Argo in the footnotes of their weekend project.
 
@@ -66,19 +143,27 @@ or [Prefect](https://prefect.io) will serve you better.
 
 ## What you get
 
+- **Auto scheduler** (above). `schedule: auto` + `every: 1d` and the
+  daemon decides *when* based on live quota signals.
+- **Cron scheduler** for when you genuinely need 09:00 on Mondays —
+  standard 5-field, polling every 10 seconds.
 - **Folder-as-registry.** Drop a directory containing `job.yaml`
   under `~/claudectl/fs/jobs/` — it becomes a job within 2 seconds.
-  Delete the folder, it's gone. There is no "register" button.
-- **A cron scheduler** polling every 10 seconds. Standard 5-field
-  cron. Next-fire time visible on the dashboard.
+  Delete the folder, it's gone. There is no "register" button, no
+  proprietary step format, no DAG to describe. `main.py` is arbitrary
+  Python; do whatever you want — hit APIs, shell out to binaries,
+  maintain SQLite databases in `workspace/`, scrape sites, write
+  files, mix Claude with OpenAI with raw HTTP.
 - **A token ledger.** Every `run_claude()` call is parsed for cost and
   tokens; totals roll up per-run, per-job, and across 5h / 24h / 7d
-  windows. Per-model breakdown (Opus vs. Sonnet vs. Haiku) too.
+  windows. Per-model breakdown (Opus vs. Sonnet vs. Haiku) too. The
+  auto scheduler learns from this same data.
 - **A WebDAV mount.** Your jobs folder is a network share. Edit from
   Finder, Windows Explorer, the iOS Files app, or `davfs2`. One copy,
   server-side, no sync conflicts.
 - **A dashboard.** Dark, fast, zero JS frameworks — cost windows,
-  per-job rollups, run history.
+  per-job rollups, run history, auto-state ("deferred 3m ago,
+  waiting for a good slot").
 - **Backend-agnostic.** Wraps `claude -p` today. Swap to `codex exec`,
   `gemini-cli`, or a direct HTTP API by implementing one method in
   one file — everything else keeps working. See [Backends](#backends).
@@ -88,15 +173,18 @@ or [Prefect](https://prefect.io) will serve you better.
 1. **You drop a folder** under `~/claudectl/fs/jobs/` — via Finder
    (over WebDAV) or `cp` on the server. The registry watcher picks it
    up in <2 seconds.
-2. **The scheduler fires it** on its cron — or you click **Run now**
-   on the dashboard.
+2. **The scheduler fires it** — on its cron, or (for `schedule: auto`)
+   the first tick where your live Claude utilization and weekly budget
+   both have headroom. Or you click **Run now** on the dashboard.
 3. **Your job calls `run_claude(...)`,** which routes through the
    configured backend (`claude -p` by default, anything else
    tomorrow). Output accumulates into a `BackendResult` with cost,
    tokens, and final text.
-4. **Every token and dollar lands in the ledger.** Every run's stdout,
-   stderr, and matching `output_globs` are frozen under
-   `runs/<run-id>/` for later inspection from the dashboard.
+4. **Every token and dollar lands in the ledger.** 5h/7d utilization is
+   snapshotted before and after each run, so the auto scheduler learns
+   each job's real footprint over time. stdout, stderr, and matching
+   `output_globs` are frozen under `runs/<run-id>/` for later
+   inspection from the dashboard.
 
 ```
    your folder                     claude-p daemon
@@ -127,7 +215,10 @@ name: my-job
 description: one-line what it does
 runtime: uv
 entrypoint: main.py
-schedule: "0 9 * * *"       # cron; omit for on-demand only
+schedule: auto              # let the scheduler pick a cheap slot
+auto:
+  every: 1d                 # run roughly once a day
+  priority: low             # wait harder for quiet hours
 timeout: 30m
 llm:
   backend: claude_cli       # which LLM runs this job
@@ -139,6 +230,9 @@ notify:
   on_success: dashboard
   on_failure: dashboard
 ```
+
+Prefer a fixed wall-clock time? Swap `schedule: auto` for a standard
+5-field cron string (`"0 9 * * *"`) and drop the `auto:` block.
 
 Inside the job, the SDK helper reads the `llm:` block for you. Nothing
 backend-specific needs to be repeated in `main.py`:

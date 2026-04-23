@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -9,11 +10,36 @@ from claude_p import queries
 from claude_p.db import connect
 from claude_p.models import RunSummary
 
+ScheduleMode = Literal["cron", "auto", "manual"]
+
 router = APIRouter()
 
 
 def _state(request: Request):
     return request.app.state.claude_p
+
+
+def _describe_schedule(entry, sched) -> tuple[str, ScheduleMode]:
+    """Return (schedule_text, mode) for the jobs-list row."""
+    if sched is None:
+        return "—", "manual"
+    if sched.mode == "auto":
+        every = entry.manifest.auto.every if entry and entry.manifest and entry.manifest.auto else "?"
+        return f"auto (every {every})", "auto"
+    return (sched.cron or "—", "cron")
+
+
+def _next_fire_text(sched, now: datetime) -> str:
+    if sched is None:
+        return "—"
+    if sched.mode == "auto":
+        if sched.deferred_since is not None:
+            age_s = int((now - sched.deferred_since).total_seconds())
+            return f"deferred {age_s}s"
+        return "on next tick"
+    if sched.next_fire_at is not None:
+        return f"{int((sched.next_fire_at - now).total_seconds())}s"
+    return "—"
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -30,14 +56,14 @@ async def jobs_list(request: Request):
         state = states.get(slug)
         sched = schedules.get(slug)
         last = last_runs.get(slug)
-        next_fire = sched.next_fire_at if sched else None
+        sched_text, mode = _describe_schedule(entry, sched)
         summaries.append(
             RunSummary(
                 slug=slug,
                 description=entry.manifest.description if entry.manifest else "(invalid)",
                 runtime=entry.manifest.runtime if entry.manifest else "—",
-                schedule=sched.cron if sched else "—",
-                next_fire_in=(f"{int((next_fire - now).total_seconds())}s" if next_fire else "—"),
+                schedule=sched_text,
+                next_fire_in=_next_fire_text(sched, now),
                 error=entry.error or (state.manifest_error if state else None),
                 disabled=bool(state.disabled_reason) if state else False,
                 last_run_id=last.id if last else None,
@@ -45,6 +71,8 @@ async def jobs_list(request: Request):
                 last_run_cost=last.cost_usd if last else 0.0,
                 last_run_at=last.started_at if last else None,
                 running=st.scheduler.is_running(slug),
+                mode=mode,
+                deferred_since=sched.deferred_since if sched else None,
             )
         )
     return st.templates.TemplateResponse(request, "jobs_list.html", {"jobs": summaries, "active": "jobs"})
@@ -60,6 +88,11 @@ async def job_detail(slug: str, request: Request):
         runs = queries.list_runs_for_job(conn, slug, limit=50)
         schedule = queries.get_schedule(conn, slug)
         state = queries.get_job_state(conn, slug)
+        # Only compute an estimate for auto jobs — it's the only page that uses it.
+        cost_estimate = None
+        if schedule is not None and schedule.mode == "auto":
+            settings = queries.load_auto_settings(conn)
+            cost_estimate = queries.auto_job_cost_estimate(conn, slug, settings)
 
     manifest_path = entry.path / "job.yaml"
     manifest_text = manifest_path.read_text() if manifest_path.exists() else ""
@@ -74,6 +107,7 @@ async def job_detail(slug: str, request: Request):
             "state": state,
             "manifest_text": manifest_text,
             "running": st.scheduler.is_running(slug),
+            "cost_estimate": cost_estimate,
             "active": "jobs",
         },
     )

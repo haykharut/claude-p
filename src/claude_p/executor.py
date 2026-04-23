@@ -18,6 +18,7 @@ from claude_p.backends import resolve_backend_class
 from claude_p.config import Config
 from claude_p.db import connect
 from claude_p.manifest import LlmConfig, Manifest
+from claude_p.models import FIVE_HOUR_WINDOW_KEY, SEVEN_DAY_WINDOW_KEY
 
 log = logging.getLogger(__name__)
 
@@ -214,6 +215,13 @@ async def execute_run(
             trigger=trigger,
             run_dir=run_dir,
         )
+        # claude.ai utilization at run-start. NULL-safe when poller off.
+        queries.update_run_util_at_start(
+            conn,
+            run_id,
+            five_hour=queries.fetch_window_util(conn, FIVE_HOUR_WINDOW_KEY),
+            seven_day=queries.fetch_window_util(conn, SEVEN_DAY_WINDOW_KEY),
+        )
 
     stdout_path = run_dir / "stdout.log"
     stderr_path = run_dir / "stderr.log"
@@ -295,9 +303,17 @@ async def execute_run(
             cache_creation_tokens=int(ledger["cache_creation_tokens"]),
             error=error,
         )
+        queries.update_run_util_at_end(
+            conn,
+            run_id,
+            five_hour=queries.fetch_window_util(conn, FIVE_HOUR_WINDOW_KEY),
+            seven_day=queries.fetch_window_util(conn, SEVEN_DAY_WINDOW_KEY),
+        )
         _persist_model_usage(conn, run_id, per_model)
         _persist_rate_limits(conn, run_id, ended, rate_limit_events)
-        if manifest.schedule:
+        if manifest.schedule and manifest.schedule != "auto":
+            # Auto jobs have their last_fire_at / deferred_since maintained
+            # by the scheduler at spawn time, not here.
             next_fire = croniter(manifest.schedule, ended).get_next(datetime)
             queries.bump_schedule(conn, manifest.name, ended, next_fire)
 

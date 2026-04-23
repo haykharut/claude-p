@@ -40,6 +40,7 @@
         {% if j.error %}<span class="chip err" title="{{ j.error }}">error</span>
         {% elif j.disabled %}<span class="chip warn">disabled</span>
         {% elif j.running %}<span class="chip">running</span>
+        {% elif j.mode == 'auto' and j.deferred_since %}<span class="chip warn" title="waiting for a good slot since {{ j.deferred_since }}">deferred</span>
         {% else %}<span class="chip ok">ready</span>
         {% endif %}
       </td>

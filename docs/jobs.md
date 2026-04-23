@@ -228,6 +228,63 @@ To pause without deleting: **Disable** button on the job detail page.
 The schedule stays in `job.yaml` but the scheduler skips the job until
 you re-enable.
 
+### Auto schedule: fill unused quota, not wall-clock slots
+
+Cron is the right answer when you need a run at a specific time. For
+batch-y jobs that just need to run "roughly once a day" and you'd
+rather they use the cheap hours — quiet time when your 5-hour Claude
+window isn't under load — use **`schedule: auto`**:
+
+```yaml
+schedule: auto
+auto:
+  every: 1d              # cadence target. 1h / 6h / 1d / 1w are common.
+  deadline: 2d           # optional. force-fire if we've deferred this long.
+                         #           default: 2 × every.
+  priority: low          # optional. 'low' uses stricter quota thresholds
+                         #           → more likely to defer to nighttime.
+                         #           default: 'normal'.
+```
+
+On each 10-second tick the scheduler asks: *is this job due? and if so,
+would firing it right now push any quota over the line?* If yes, defer;
+if no, fire. Inputs the algorithm looks at:
+
+1. **Current 5-hour window utilization** (from the claude.ai poller —
+   optional; see `/settings`). Day/night thresholds differ so nighttime
+   is permissive and daytime is strict.
+2. **Weekly window utilization** — a hard-ish cap; firing won't happen
+   if it would push the 7-day window over `auto_weekly_skip_above`.
+3. **Weekly USD spend vs. your `weekly_budget_usd`** — the job's own
+   historical cost (avg of its last 10 runs) is added before comparing,
+   so we don't fire runs we know will bust the budget.
+4. **Time of day** in the configured local timezone.
+5. **Deadline.** If we've been deferring a cadence period longer than
+   `deadline`, we fire regardless. Forward progress beats perfect
+   timing.
+
+**Cold start.** New auto jobs (fewer than 3 runs) use conservative
+global defaults for cost and utilization impact until they've run
+enough times to learn their real footprint. Thereafter, the scheduler
+uses the median observed 5h / 7d utilization delta of the last ten
+runs of this specific job.
+
+**No claude.ai cookie? Still works.** Without the poller, the
+algorithm falls back to ledger-only signals: weekly USD vs. budget,
+time-of-day, and cadence. Less precise, but opt-in precision, not a
+hard requirement.
+
+**Globals.** All threshold knobs live in `/settings` as `auto_*` keys
+(`auto_5h_util_day_normal`, `auto_weekly_skip_above`,
+`auto_safety_factor`, …). Defaults are sensible. Tune them once per
+server, not once per job.
+
+**Example flow.** A job with `every: 1d, priority: low` on a weekday:
+- 10:00 local, 5h utilization 55%. Daytime threshold for low is 30% →
+  defer. Dashboard shows "deferred Xs ago."
+- 23:30 local, 5h utilization 12%. Nighttime low threshold is 70% →
+  fire. Dashboard logs the reason and spawns the run.
+
 ## Editing and re-running
 
 Just edit the files. The registry watcher picks up changes to

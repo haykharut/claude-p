@@ -149,6 +149,127 @@ def cmd_set_budget(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_verify_windows(args: argparse.Namespace) -> int:
+    """Empirically identify which claude.ai `/usage` window_key moves
+    when `claude -p` runs. This is the signal the auto-schedule algorithm
+    reads; the constants in `models.py` assume `five_hour` + `seven_day`.
+
+    Flow: poll → snapshot → run one tiny `claude -p` call → poll → diff.
+    Prints windows sorted by utilization delta, largest first. Whichever
+    key moves is the one the algorithm should read.
+    """
+    import asyncio
+
+    from claude_p import claude_ai, queries
+    from claude_p.db import connect, get_setting
+    from claude_p.models import CLAUDE_AI_ENABLED_SETTING
+
+    cfg = get_config()
+
+    with connect(cfg.db_path) as conn:
+        if get_setting(conn, CLAUDE_AI_ENABLED_SETTING) != "1":
+            print(
+                "claude.ai poller is not configured. Open /settings in the\n"
+                "dashboard, paste sessionKey + org_id from claude.ai, and enable\n"
+                "the integration before running this command.",
+                file=sys.stderr,
+            )
+            return 1
+
+    def _snapshot() -> dict[str, float | None]:
+        with connect(cfg.db_path) as conn:
+            return {w.window_key: w.utilization for w in queries.list_claude_ai_windows(conn)}
+
+    print("polling claude.ai usage (before)…")
+    asyncio.run(claude_ai.poll_once(cfg))
+    before = _snapshot()
+    if not before:
+        print("no usage data returned. Check /settings for a last_error.", file=sys.stderr)
+        return 1
+    print(f"  {len(before)} windows captured")
+
+    claude_bin = shutil.which(cfg.claude_cli) or cfg.claude_cli
+    prompt = "say 'ok' and nothing else"
+    print(f"running `{cfg.claude_cli} -p` to move the needle (costs <$0.01)…")
+    try:
+        r = subprocess.run(
+            [claude_bin, "-p", "--output-format", "json", "--max-turns", "1", prompt],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    except subprocess.TimeoutExpired:
+        print("claude -p timed out after 120s", file=sys.stderr)
+        return 1
+    if r.returncode != 0:
+        print(f"claude -p failed (exit {r.returncode}): {r.stderr[:300]}", file=sys.stderr)
+        return 1
+    print("  done")
+
+    # Claude.ai's /usage endpoint is eventually-consistent; give it a moment.
+    print("waiting 8s for claude.ai /usage to catch up…")
+    import time
+
+    time.sleep(8)
+    print("polling claude.ai usage (after)…")
+    asyncio.run(claude_ai.poll_once(cfg))
+    after = _snapshot()
+
+    # Diff every window we saw in either snapshot.
+    all_keys = sorted(set(before) | set(after))
+    deltas: list[tuple[str, float | None, float | None, float | None]] = []
+    for k in all_keys:
+        b = before.get(k)
+        a = after.get(k)
+        if a is None or b is None:
+            delta = None
+        else:
+            delta = a - b
+        deltas.append((k, b, a, delta))
+
+    # Sort: real moves (positive delta) first, largest first; then no-change; then missing.
+    def _sort_key(row):
+        _k, _b, _a, d = row
+        if d is None:
+            return (2, 0.0)
+        if d > 0:
+            return (0, -d)  # largest positive first
+        return (1, -d)
+
+    deltas.sort(key=_sort_key)
+
+    print("\nUtilization delta (after − before):")
+    print(f"  {'window_key':30s}  {'before':>8s}  {'after':>8s}  {'delta':>8s}")
+    for k, b, a, d in deltas:
+        b_s = f"{b:.2f}%" if b is not None else "—"
+        a_s = f"{a:.2f}%" if a is not None else "—"
+        d_s = f"{d:+.2f}%" if d is not None else "—"
+        marker = " ←" if d is not None and d > 0.01 else ""
+        print(f"  {k:30s}  {b_s:>8s}  {a_s:>8s}  {d_s:>8s}{marker}")
+
+    movers = [k for k, _b, _a, d in deltas if d is not None and d > 0.01]
+    print()
+    if not movers:
+        print(
+            "No window moved measurably. This can happen if: (a) your 5h window\n"
+            "was already full, (b) the /usage endpoint hadn't yet ingested this\n"
+            "run (retry in a minute), or (c) `claude -p` is tracked by a window\n"
+            "not in the response payload. Inspect the raw JSON by running:\n"
+            "  sqlite3 ~/claudectl/claude-p.db 'SELECT window_key, raw_json FROM claude_ai_usage'"
+        )
+        return 2
+
+    print(f"Windows that moved: {', '.join(movers)}")
+    print()
+    print(
+        "The auto-schedule algorithm reads `FIVE_HOUR_WINDOW_KEY` and\n"
+        "`SEVEN_DAY_WINDOW_KEY` in src/claude_p/models.py. If the keys above\n"
+        "don't match those constants (currently 'five_hour' and 'seven_day'),\n"
+        "update them so the scheduler uses the correct signal."
+    )
+    return 0
+
+
 def main() -> int:
     p = argparse.ArgumentParser(prog="claude-p", description="Home server for Claude Code agent jobs.")
     p.add_argument("-v", "--verbose", action="store_true")
@@ -173,6 +294,12 @@ def main() -> int:
     sp = sub.add_parser("set-budget", help="Set the weekly USD budget")
     sp.add_argument("amount", type=float)
     sp.set_defaults(func=cmd_set_budget)
+
+    sp = sub.add_parser(
+        "verify-windows",
+        help="Run one `claude -p` and print which claude.ai window_keys moved.",
+    )
+    sp.set_defaults(func=cmd_verify_windows)
 
     args = p.parse_args()
     _setup_logging(args.verbose)

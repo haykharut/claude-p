@@ -53,7 +53,11 @@
     <div class="grid grid-2">
       <div>
         <div class="metric-label">Schedule</div>
-        {% if m.schedule %}
+        {% if m.schedule == 'auto' %}
+          <div><code>auto</code>{% if m.auto %} · every <code>{{ m.auto.every }}</code>{% if m.auto.deadline %} · deadline <code>{{ m.auto.deadline }}</code>{% endif %} · <code>{{ m.auto.priority }}</code>{% endif %}</div>
+          {% if schedule and schedule.last_fire_at %}<div class="metric-sub">last: {{ schedule.last_fire_at }}</div>{% endif %}
+          {% if schedule and schedule.deferred_since %}<div class="metric-sub">waiting for a good slot since {{ schedule.deferred_since }}</div>{% endif %}
+        {% elif m.schedule %}
           <div><code>{{ m.schedule }}</code></div>
           {% if schedule and schedule.next_fire_at %}<div class="metric-sub">next: {{ schedule.next_fire_at }}</div>{% endif %}
           {% if schedule and schedule.last_fire_at %}<div class="metric-sub">last: {{ schedule.last_fire_at }}</div>{% endif %}
@@ -124,6 +128,33 @@
 <div class="mv-panel mv-panel-raw">
   <pre><code>{{ manifest_text }}</code></pre>
 </div>
+
+{% if cost_estimate %}
+<h2>Cost estimate</h2>
+<div class="card stack">
+  <div class="grid grid-2">
+    <div>
+      <div class="metric-label">Avg cost / run</div>
+      <div class="mono">${{ "%.4f"|format(cost_estimate.avg_cost_usd) }}{% if cost_estimate.p90_cost_usd != cost_estimate.avg_cost_usd %} · p90 ${{ "%.4f"|format(cost_estimate.p90_cost_usd) }}{% endif %}</div>
+      <div class="metric-sub">
+        {% if cost_estimate.is_cold_start %}
+          <span class="chip warn">cold start</span> using global defaults ({{ cost_estimate.sample_size }} sample{{ 's' if cost_estimate.sample_size != 1 else '' }})
+        {% else %}
+          learned from last {{ cost_estimate.sample_size }} run{{ 's' if cost_estimate.sample_size != 1 else '' }}
+        {% endif %}
+      </div>
+    </div>
+    <div>
+      <div class="metric-label">Predicted utilization impact</div>
+      <div class="mono">
+        {% if cost_estimate.median_5h_util_delta is not none %}+{{ "%.1f"|format(cost_estimate.median_5h_util_delta) }}% 5h{% endif %}
+        {% if cost_estimate.median_7d_util_delta is not none %}<span class="dim">·</span> +{{ "%.1f"|format(cost_estimate.median_7d_util_delta) }}% 7d{% endif %}
+      </div>
+      <div class="metric-sub">median observed per run; scheduler multiplies by the safety factor when deciding.</div>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 <h2>Runs</h2>
 {% if not runs %}
