@@ -14,9 +14,10 @@ from pathlib import Path
 from croniter import croniter
 
 from claude_p import queries
+from claude_p.backends import resolve_backend_class
 from claude_p.config import Config
 from claude_p.db import connect
-from claude_p.manifest import Manifest
+from claude_p.manifest import LlmConfig, Manifest
 
 log = logging.getLogger(__name__)
 
@@ -31,6 +32,38 @@ def _encode_param(value) -> str:
     return json.dumps(value)
 
 
+def _effective_llm_config(manifest: Manifest, cfg: Config) -> dict:
+    """Merge the job's `llm:` block with daemon defaults into the dict
+    we write to `runs/<id>/llm_config.json`. `run_claude()` in user
+    jobs reads that file and uses the values as defaults — explicit
+    kwargs still win.
+
+    The `options` block is run through the selected backend's
+    `Options` Pydantic model so schema defaults land in the file too;
+    `run_claude()` then only has to handle "present" vs "absent",
+    never "field exists but some of its subdefaults are missing".
+    """
+    llm = manifest.llm or LlmConfig()
+    backend_name = llm.backend or cfg.backend
+    backend_cls = resolve_backend_class(backend_name)
+    options_model = backend_cls.Options.model_validate(llm.options)
+    return {
+        "backend": backend_name,
+        "model": llm.model,
+        "max_budget_usd": llm.max_budget_usd,
+        "max_turns": llm.max_turns,
+        "timeout_seconds": llm.timeout_seconds,
+        "system_prompt": llm.system_prompt,
+        "options": options_model.model_dump(),
+    }
+
+
+def _write_llm_config(run_dir: Path, manifest: Manifest, cfg: Config) -> Path:
+    path = run_dir / "llm_config.json"
+    path.write_text(json.dumps(_effective_llm_config(manifest, cfg), indent=2))
+    return path
+
+
 def _build_env(
     cfg: Config,
     manifest: Manifest,
@@ -39,12 +72,16 @@ def _build_env(
     workspace_dir: Path,
     extra_params: dict,
     secrets: dict[str, str],
+    llm_config_path: Path,
 ) -> dict[str, str]:
     env = os.environ.copy()
     env["CLAUDE_P_RUN_ID"] = run_id
     env["CLAUDE_P_JOB_DIR"] = str(job_dir)
     env["CLAUDE_P_WORKSPACE_DIR"] = str(workspace_dir)
     env["CLAUDE_P_CLAUDE_CLI"] = cfg.claude_cli
+    # Pointer to the merged llm config for this run. `run_claude()`
+    # reads it to fill in defaults (backend, model, budget, options).
+    env["CLAUDE_P_LLM_CONFIG"] = str(llm_config_path)
     for key, spec in manifest.params.items():
         value = extra_params.get(key, spec.default)
         if value is None:
@@ -186,7 +223,10 @@ async def execute_run(
 
     try:
         argv = _build_argv(cfg, manifest, job_dir)
-        env = _build_env(cfg, manifest, run_id, job_dir, workspace_dir, extra_params, secrets)
+        llm_config_path = _write_llm_config(run_dir, manifest, cfg)
+        env = _build_env(
+            cfg, manifest, run_id, job_dir, workspace_dir, extra_params, secrets, llm_config_path
+        )
 
         if manifest.runtime == "uv" and (job_dir / "pyproject.toml").exists():
             await _run_and_log(

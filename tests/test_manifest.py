@@ -51,3 +51,54 @@ def test_malformed_yaml(tmp_path):
     p.write_text("name: [unterminated")
     with pytest.raises(ManifestError):
         load_manifest(p)
+
+
+# --- llm block -----------------------------------------------------------
+
+
+def test_llm_block_accepts_full_shape():
+    m = Manifest.model_validate(
+        {
+            "name": "j",
+            "entrypoint": "x.py",
+            "llm": {
+                "backend": "claude_cli",
+                "model": "claude-opus-4-7",
+                "max_budget_usd": 2.5,
+                "max_turns": 10,
+                "timeout_seconds": 60.0,
+                "system_prompt": "be terse",
+                "options": {"allowed_tools": ["Read"], "permission_mode": "dontAsk"},
+            },
+        }
+    )
+    assert m.llm is not None
+    assert m.llm.backend == "claude_cli"
+    assert m.llm.model == "claude-opus-4-7"
+    assert m.llm.max_budget_usd == 2.5
+    assert m.llm.options == {"allowed_tools": ["Read"], "permission_mode": "dontAsk"}
+
+
+def test_llm_block_is_optional():
+    m = Manifest.model_validate({"name": "j", "entrypoint": "x.py"})
+    assert m.llm is None
+
+
+def test_llm_block_rejects_unknown_top_level_key():
+    with pytest.raises(ValidationError, match="Extra"):
+        Manifest.model_validate({"name": "j", "entrypoint": "x.py", "llm": {"badkey": 1}})
+
+
+def test_llm_options_is_opaque_at_parse_time():
+    """`llm.options` parses as a raw dict; the backend's Options
+    schema validates it later (in `backends.validate_llm_options`).
+    This lets `manifest.py` stay unaware of which backends exist."""
+    m = Manifest.model_validate(
+        {
+            "name": "j",
+            "entrypoint": "x.py",
+            "llm": {"options": {"anything": "goes", "here": 42}},
+        }
+    )
+    assert m.llm is not None
+    assert m.llm.options == {"anything": "goes", "here": 42}

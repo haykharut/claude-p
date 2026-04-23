@@ -62,9 +62,16 @@ params:
   keywords: { type: list, default: [python, infra] }
 env: [SMTP_PASSWORD]          # pulled from the server's secret store
 output_globs: ["digest.md", "*.csv"]   # copied into runs/<id>/output/
-claude:
-  allowed_tools: [Read, Write, Bash, WebFetch]
+llm:
+  backend: claude_cli         # optional; defaults to CLAUDE_P_BACKEND
   max_budget_usd: 0.50        # per-run circuit breaker
+  max_turns: null             # optional cap on agent turns
+  timeout_seconds: null       # optional wall-clock cap per run_claude() call
+  system_prompt: null         # optional; prepended as system prompt
+  options:                    # backend-specific flags — validated against
+    allowed_tools: [Read, Write, Bash, WebFetch]   # the selected backend's
+    permission_mode: dontAsk                        # Options schema at load
+    add_dir: []                                     # time (typos fail fast)
 notify:
   on_success: dashboard
   on_failure: dashboard
@@ -72,6 +79,28 @@ notify:
 
 **`name` must match the folder name.** If it doesn't, the dashboard
 will show the job as "broken" and tell you why.
+
+### The `llm:` block in detail
+
+- `backend:` selects which LLM runs this job (default: the daemon's
+  `CLAUDE_P_BACKEND`, which ships as `claude_cli`). Change this field
+  to point at a different backend — same `main.py`, different engine.
+- Top-level fields (`model`, `max_budget_usd`, `max_turns`,
+  `timeout_seconds`, `system_prompt`) are shared across backends.
+- `options:` is the escape hatch for backend-native flags. For the
+  claude backend that's `allowed_tools`, `permission_mode`, `add_dir`.
+  For a future Codex backend it would be its own set. Each backend
+  declares a Pydantic schema with `extra="forbid"` — misspell a key
+  and the job loads as "broken" in the dashboard before anyone runs it.
+
+**Resolution order at call time:**
+
+    explicit run_claude() kwargs  >  manifest llm block  >  code defaults
+
+The `llm` block is *defaults*. Anything passed explicitly in `main.py`
+wins. Anything absent falls through to the file, then to code
+defaults. You can drop the block entirely and keep hard-coding in
+`main.py` — nothing breaks.
 
 Params become env vars inside the job: `CLAUDE_P_PARAM_KEYWORDS`
 (JSON-encoded), `CLAUDE_P_PARAM_MAX_POSTINGS`, etc.
@@ -109,26 +138,35 @@ failures are:
 ```python
 from claude_p import run_claude
 
-result = run_claude(
-    prompt="Summarise these posts into one markdown digest: ...",
-    allowed_tools=["Read", "Write"],
-    max_budget_usd=0.30,
-)
+# Tools, budget, permission_mode come from job.yaml's `llm:` block.
+result = run_claude(prompt="Summarise these posts into one markdown digest: ...")
 print(result.text)
 print(f"cost: ${result.cost_usd:.4f}")
 ```
 
-The helper parses `stream-json`, writes `trace.jsonl`, and increments
-the ledger automatically. Prefer this unless you need a flag it
-doesn't expose.
+The helper reads `runs/<run-id>/llm_config.json` (written by the
+executor from the manifest `llm:` block), fills in defaults, invokes
+the selected backend, and increments the ledger. Prefer this over
+shelling out to `claude` yourself unless you need a flag it doesn't
+expose.
+
+You can still pass kwargs explicitly if you want to override the
+manifest on a per-call basis:
+
+```python
+result = run_claude(
+    prompt="A quick thing",
+    max_budget_usd=0.05,      # tighter than job.yaml says
+    max_turns=1,
+)
+```
+
+Explicit kwargs > manifest `llm` > code defaults.
 
 Under the hood, `run_claude()` dispatches to whichever
-[`Backend`](../src/claude_p/backends/) the daemon is configured for —
-`claude_cli` (default), or a future `codex_cli` / HTTP API. Your job
-code doesn't care: the signature and the returned result object are
-the same across backends. Backend-specific kwargs (`allowed_tools`,
-`permission_mode`, `add_dir`) are forwarded to the claude backend and
-ignored by others.
+[`Backend`](../src/claude_p/backends/) the job's `llm.backend:` picks —
+`claude_cli`, or a future `codex_cli` / HTTP API. The signature and
+the returned result object are the same across backends.
 
 ### The escape hatch: shell out to `claude` directly
 

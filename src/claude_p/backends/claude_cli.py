@@ -16,13 +16,28 @@ import asyncio
 import json
 import os
 from collections.abc import AsyncIterator, Iterable
-from typing import Any
+from typing import Any, Literal
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from claude_p.models import BackendEvent, RunOptions
 
 from .base import Backend
 
 DEFAULT_ALLOWED_TOOLS = ["Read", "Write", "Bash", "WebFetch"]
+
+
+class ClaudeCLIOptions(BaseModel):
+    """Schema for the `llm.options` block in a job.yaml when
+    `llm.backend == "claude_cli"`. Exactly the flags we forward to
+    `claude -p` — anything else is a typo and should fail validation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    allowed_tools: list[str] = Field(default_factory=lambda: list(DEFAULT_ALLOWED_TOOLS))
+    permission_mode: Literal["default", "acceptEdits", "plan", "dontAsk", "bypassPermissions"] = "dontAsk"
+    add_dir: list[str] = Field(default_factory=list)
+    claude_cli: str | None = None  # override the path to the claude binary
 
 
 def build_claude_argv(
@@ -180,6 +195,7 @@ class ClaudeCLIBackend(Backend):
     canonical events."""
 
     name = "claude_cli"
+    Options = ClaudeCLIOptions
 
     async def stream(self, options: RunOptions) -> AsyncIterator[BackendEvent]:
         bo = options.backend_options

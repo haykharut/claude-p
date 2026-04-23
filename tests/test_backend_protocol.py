@@ -144,7 +144,7 @@ def test_unknown_backend_name_raises():
 
     cfg = Config()
     cfg.backend = "does_not_exist"
-    with pytest.raises(ValueError, match="unknown CLAUDE_P_BACKEND"):
+    with pytest.raises(ValueError, match="unknown backend"):
         get_backend(cfg)
 
 

@@ -9,6 +9,7 @@ from croniter import croniter
 from watchfiles import Change, awatch
 
 from claude_p import queries
+from claude_p.backends import validate_llm_options
 from claude_p.config import Config
 from claude_p.db import connect
 from claude_p.manifest import Manifest, ManifestError, load_manifest, manifest_hash
@@ -45,6 +46,10 @@ class Registry:
             if existing and existing.manifest_hash == mh and existing.manifest is not None:
                 return
             manifest = load_manifest(yaml_path, expected_slug=slug)
+            # Lazy because `manifest.py` can't import backends without a
+            # circular import. A failure here marks the job broken in
+            # the dashboard before anyone hits Run now.
+            validate_llm_options(manifest, self.cfg)
             self.entries[slug] = RegistryEntry(
                 slug=slug,
                 path=yaml_path.parent,

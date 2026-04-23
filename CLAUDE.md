@@ -16,18 +16,24 @@ Single Python package (`src/claude_p/`) deployed as a FastAPI daemon:
 - `models.py` — every type that crosses a module boundary (DB rows, rollups,
   registry entries, view models). Pydantic `BaseModel`.
 - `queries.py` — raw SQL in, typed models out. No ORM.
-- `manifest.py` — `job.yaml` schema (Pydantic)
+- `manifest.py` — `job.yaml` schema (Pydantic). Stays
+  backend-agnostic: `llm.options` is parsed as a raw dict and
+  validated later by `backends.validate_llm_options` (called from
+  the registry). Keeps the module free of circular imports.
 - `registry.py` — watchfiles → in-memory `dict[slug, RegistryEntry]` + DB
 - `scheduler.py` — croniter poller, 10s tick, spawns runs via executor
 - `executor.py` — asyncio subprocess, uv/shell runtimes, output copy, ledger roll-up
 - `backends/` — pluggable LLM backend surface. `base.py` defines the
   `Backend` ABC (one method: `async stream() -> AsyncIterator
-  [BackendEvent]`) and the shared `fold_event` that turns canonical
-  events into a `BackendResult`. `claude_cli.py` is the reference
-  implementation wrapping `claude -p` (argv builder + stream-json →
-  canonical event translation). Pick one via `CLAUDE_P_BACKEND`
-  (default `claude_cli`). To add a new backend: new file under
-  `backends/`, register in `backends/__init__._BACKENDS`, done.
+  [BackendEvent]`; one `ClassVar[type[BaseModel]] Options` schema
+  describing what the backend accepts from `llm.options` in
+  `job.yaml`) and the shared `fold_event` that turns canonical events
+  into a `BackendResult`. `claude_cli.py` is the reference
+  implementation wrapping `claude -p`. Pick one via `CLAUDE_P_BACKEND`
+  (default `claude_cli`) — a per-job `llm.backend:` in `job.yaml`
+  overrides. To add a new backend: new file under `backends/`, declare
+  `Options` (Pydantic, `extra="forbid"`), register in
+  `backends/__init__._BACKENDS`, done.
   **Always** parses `total_cost_usd` and
   `usage.{input,output,cache_read_input,cache_creation_input}_tokens`
   from the final `result` event.

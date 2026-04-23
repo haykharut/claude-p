@@ -9,11 +9,16 @@ happens in shared code here and in `claude_p.__init__`. So the whole of
 "make claude-p drive a different LLM" is:
 
     1. Subclass `Backend` in a new file under `backends/`.
-    2. Implement `stream()` by converting your native events into
+    2. Declare an `Options` inner class — a Pydantic model with
+       `extra="forbid"` — describing the backend-native flags your
+       implementation accepts. A manifest's `llm.options` block is
+       validated against this schema at registry-load time.
+    3. Implement `stream()` by converting your native events into
        `BackendEvent(kind=..., data={...})`. Always yield a terminal event
        with `kind="result"` carrying the final totals.
-    3. Register it in `backends/__init__.py` under a string key.
-    4. Set `CLAUDE_P_BACKEND=<your-key>`.
+    4. Register it in `backends/__init__.py` under a string key.
+    5. Set `CLAUDE_P_BACKEND=<your-key>` (or pin per-job in
+       `job.yaml`'s `llm.backend:`).
 
 The canonical event kinds are defined in `models.BackendEventKind` — keep
 them semantic, not stream-json-shaped, so HTTP-style backends don't have
@@ -27,14 +32,33 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Callable
 from typing import ClassVar
 
+from pydantic import BaseModel, ConfigDict
+
 from claude_p.config import Config
 from claude_p.models import BackendEvent, BackendResult, RunOptions
 
 
+class EmptyBackendOptions(BaseModel):
+    """Default `Options` schema — accepts nothing. A backend with no
+    native flags can leave `Options` unset; manifests trying to pass
+    unknown keys will then fail validation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+
 class Backend(ABC):
-    """Abstract base for an LLM backend."""
+    """Abstract base for an LLM backend.
+
+    Subclasses MUST set `name` and SHOULD declare an `Options` nested
+    class (a Pydantic `BaseModel` with `extra="forbid"`) describing the
+    backend-native flags they accept from `job.yaml`'s `llm.options`.
+    """
 
     name: ClassVar[str]
+    # Per-backend schema for `llm.options` in job.yaml. Overridden by
+    # subclasses; defaults to empty so an unset Options rejects unknown
+    # keys rather than silently accepting them.
+    Options: ClassVar[type[BaseModel]] = EmptyBackendOptions
 
     def __init__(self, cfg: Config) -> None:
         self.cfg = cfg

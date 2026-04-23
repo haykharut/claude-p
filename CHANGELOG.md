@@ -8,6 +8,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Per-job LLM config in `job.yaml`** via a new top-level `llm:`
+  block. Carries `backend`, `model`, `max_budget_usd`, `max_turns`,
+  `timeout_seconds`, `system_prompt`, and a backend-native `options:`
+  dict. The executor serializes the resolved block into
+  `runs/<run-id>/llm_config.json` before spawning; `run_claude()`
+  reads it and uses the values as defaults. Resolution order is
+  **explicit kwargs → manifest `llm` → code defaults** so the same
+  `main.py` works across backends when the only thing that changes is
+  the yaml — the LinkedIn-moment for the backend-swap story.
+- Per-backend **`Options` Pydantic schema** (`extra="forbid"`) declared
+  on each `Backend` subclass. `ClaudeCLIBackend.Options` covers
+  `allowed_tools`, `permission_mode`, `add_dir`, `claude_cli`. The
+  registry validates `llm.options` against the selected backend's
+  schema at load time (`backends.validate_llm_options`) — typos in
+  the yaml fail immediately with a clear error in the dashboard.
+- `backends.resolve_backend_class(name)` and `effective_backend_name(
+  manifest, cfg)` helpers so the executor / `run_claude` can resolve
+  per-job backend overrides without the manifest module importing
+  backends.
+- Tests: `tests/test_llm_injection.py` covers validator + executor's
+  merged-config write + `run_claude()`'s three-source resolution.
 - **Pre-commit + type checking.** `.pre-commit-config.yaml` runs
   `ruff check --fix`, `ruff format`, `pyright` (basic mode), and a
   handful of `pre-commit-hooks` staples on every commit.
@@ -15,6 +36,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `pre-commit` added to dev deps. Install once with
   `.venv/bin/pre-commit install`. Existing code cleaned up in the
   same pass so `pre-commit run --all-files` starts green.
+
+### Changed
+- **Manifest: `claude:` → `llm:`** with a new nested shape. Breaking
+  change; no job.yaml in the repo actually used the old block (it was
+  documentation that the executor never consumed). See README / docs
+  for the new shape. `run_claude()`'s Python-kwarg surface is
+  preserved for callers that prefer hard-coding in `main.py`.
 
 ### Removed
 - **Scaffolder.** The dashboard "Scaffold" tab, the English-prompt →

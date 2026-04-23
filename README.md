@@ -129,32 +129,65 @@ runtime: uv
 entrypoint: main.py
 schedule: "0 9 * * *"       # cron; omit for on-demand only
 timeout: 30m
-claude:
-  allowed_tools: [Read, Write, Bash, WebFetch]
-  max_budget_usd: 1.50
+llm:
+  backend: claude_cli       # which LLM runs this job
+  max_budget_usd: 1.50      # per-run circuit breaker
+  options:                  # backend-specific flags, validated at load time
+    allowed_tools: [Read, Write, Bash, WebFetch]
+    permission_mode: dontAsk
 notify:
   on_success: dashboard
   on_failure: dashboard
 ```
 
-Inside the job, the SDK helper routes to whichever backend the daemon
-is configured for, and token/cost flow to the ledger automatically:
+Inside the job, the SDK helper reads the `llm:` block for you. Nothing
+backend-specific needs to be repeated in `main.py`:
 
 ```python
 from claude_p import run_claude
 
 result = run_claude(
     prompt="Summarise these job postings into a markdown digest: …",
-    allowed_tools=["Read", "Write"],
-    max_budget_usd=0.30,
 )
 print(result.text, result.cost_usd)
 ```
+
+Explicit kwargs always win if you pass them. Resolution order is
+**explicit kwargs → manifest `llm` block → code defaults** — the
+manifest is defaults, not mandatory.
 
 Need a flag `run_claude` doesn't expose (`--json-schema`, custom
 system-prompt file)? Shell out to `claude` directly and write one JSON
 line per call to `<CLAUDE_P_JOB_DIR>/runs/<CLAUDE_P_RUN_ID>/claude_calls.jsonl`.
 See [CLAUDE.md](./CLAUDE.md) for the exact contract.
+
+### One `main.py`, different LLMs per job
+
+The `llm:` block is per-job. Same `main.py`, one yaml flip, different
+engine:
+
+```yaml
+# my-job/job.yaml — running on Claude
+llm:
+  backend: claude_cli
+  options:
+    allowed_tools: [Read, Write, Bash, WebFetch]
+```
+
+```yaml
+# my-job/job.yaml — same code, running on Codex / OpenAI
+llm:
+  backend: openai
+  model: gpt-5
+  options:
+    tools: [shell, apply_patch]
+```
+
+`run_claude(prompt=...)` in `main.py` doesn't change. The manifest's
+`llm.options` block is validated against the selected backend's schema
+at load time (Pydantic `extra="forbid"`) — typos in the yaml fail
+immediately with a clear error in the dashboard instead of blowing up
+the first time the job runs.
 
 ## Install
 

@@ -32,12 +32,53 @@ class ParamSpec(BaseModel):
     default: Any = None
 
 
-class ClaudeConfig(BaseModel):
+class LlmConfig(BaseModel):
+    """How this job should invoke the LLM.
+
+    This block is what turns a `main.py` that calls `run_claude(...)`
+    into a *portable* job — the same `main.py` can drive different
+    backends by changing `backend:` here. The executor writes these
+    values into `runs/<run-id>/llm_config.json` before spawning the
+    job process; `run_claude()` reads that file and uses the values as
+    defaults. Explicit kwargs passed to `run_claude()` still win.
+
+    Shape:
+
+        llm:
+          backend: claude_cli         # optional; falls back to CLAUDE_P_BACKEND
+          model: null                 # optional; backend decides the default
+          max_budget_usd: 1.00        # circuit-breaker; forwarded to the backend
+          max_turns: null             # optional cap on agent turns
+          timeout_seconds: null       # optional wall-clock cap for one run_claude() call
+          system_prompt: null         # optional: prepended as system prompt
+          options:                    # **backend-specific** flags, validated
+            allowed_tools: [...]      # against the selected backend's Options
+            permission_mode: dontAsk  # model at registry-load time (extra="forbid"
+            add_dir: [...]            # catches typos).
+
+    Explicit resolution order at call time:
+
+        explicit run_claude() kwargs  >  manifest llm block  >  code defaults
+
+    The `options` dict is passed through verbatim to
+    `RunOptions.backend_options`. It means different things depending
+    on `backend:` — `allowed_tools` / `permission_mode` / `add_dir` for
+    the claude_cli backend; whatever future backends declare.
+    """
+
     model_config = ConfigDict(extra="forbid")
-    allowed_tools: list[str] = Field(default_factory=lambda: ["Read", "Write", "Bash", "WebFetch"])
-    permission_mode: Literal["default", "acceptEdits", "plan", "dontAsk", "bypassPermissions"] = "dontAsk"
+
+    backend: str | None = None
+    model: str | None = None
     max_budget_usd: float = 0.50
     max_turns: int | None = None
+    timeout_seconds: float | None = None
+    system_prompt: str | None = None
+    # Raw backend-native options. Validated against the selected
+    # backend's Options schema by `validate_llm_options` in the
+    # registry; a manifest using unknown keys for its backend will be
+    # rejected and the job marked broken in the dashboard.
+    options: dict[str, Any] = Field(default_factory=dict)
 
 
 class NotifyConfig(BaseModel):
@@ -60,7 +101,10 @@ class Manifest(BaseModel):
     workspace: bool = True
     shared: bool = False
     output_globs: list[str] = Field(default_factory=list)
-    claude: ClaudeConfig | None = None
+    # How this job invokes the LLM. See `LlmConfig` for the full shape
+    # and resolution order. Omit to let the job hard-code everything in
+    # `run_claude()` kwargs.
+    llm: LlmConfig | None = None
     notify: NotifyConfig = Field(default_factory=NotifyConfig)
 
     @field_validator("name")
