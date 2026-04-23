@@ -4,7 +4,7 @@
 
 ### Stop leaving Claude tokens on the table.
 
-claude-p is a seriously awesome mini-project that moves `claude -p` + Python based agentic workflows to a remote server and runs them on usage aware scheduler. It also promises to have zero impact on your local workflows. Read below to find out more.
+claude-p is a seriously awesome mini-project that moves `claude -p` + Python based agentic workflows to a remote server and runs them on a usage aware scheduler. It also promises to have zero impact on your local workflows. Read below to find out more.
 
 [Overview](./docs/overview.md) · [Quick look](#quick-look) · [Install](#install) · [Docs](./docs/)
 
@@ -12,9 +12,9 @@ claude-p is a seriously awesome mini-project that moves `claude -p` + Python bas
 
 ---
 
-3 Core ideas:
-  - `claude -p` is a great way in to building agentic workflows. It also helps us make better use of our claude code subscription without having to pay API costs.
-  -  Optional `schedule: auto` mode. On auto mode, scheduler fires workflows when your quota has headroom. It's based on your liv 5-hour and 7-day utilization, time of day, and each job's historical cost. Hot window? It defers. Quiet window at 02:00? It runs.
+Claude-p is based on 3 core ideas:
+  - `claude -p (print mode)` is a great way in to building agentic workflows. It allows us to use our claude code subscription without having to pay API costs.
+  -  Opt-in `schedule: auto` mode, which fires workflows when your quota has headroom. It's based on your live 5-hour and 7-day utilization, time of day, and each job's historical cost. Hot window? It defers. Quiet window at 02:00? It runs.
   - Zero impact on local workflows via folder-as-workflow and [Syncthing](./docs/filesystem.md). Set up Syncthing for two-way folder sync and keep working on your laptop. The server picks up changes in seconds; job outputs land back on your desk.
 
 
@@ -87,10 +87,6 @@ One command: venv, DB, password, systemd service. Then pair your laptop:
 Open <http://localhost:8080>. Full install options:
 [docs/install.md](./docs/install.md).
 
-## Philosophy
-
-Home-server first. LAN-only by default. Single-user. SQLite. One
-Python binary. 4 GB of RAM. Boring, debuggable, yours.
 
 ## Docs
 
