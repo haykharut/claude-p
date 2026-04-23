@@ -68,6 +68,27 @@ Here's what else people are building:
 If you need RBAC, multi-tenant isolation, or a proper workflow DAG
 engine, this is not it. Rather, this is a modelling of a very specific, personalized use-case.
 
+## How is this different from…
+
+|  | cron + scripts | Claude Code `/loop` | Prefect / Airflow / n8n | claude-p |
+|---|---|---|---|---|
+| Run arbitrary Python packages | yes | no — repeats a single prompt | yes | yes |
+| Survives reboot / SSH logout | yes | no — dies with your terminal | yes | yes |
+| Token-aware scheduling | no | no | no | **yes** — reads your 5h/7d utilization |
+| Uses your Max subscription (no API cost) | DIY | yes | no — API keys + billing | **yes** |
+| Cost ledger per job/run | no | no | partial | **yes** — tokens, USD, rolling windows |
+| Dependency management (uv/pip) | DIY | no | yes | yes |
+| Dashboard | no | no | yes (heavy) | yes (lightweight) |
+| Setup complexity | zero | zero | high (Docker, DB, workers) | low (one script) |
+| Designed for | anything | prompt repetition | team data pipelines | **Max subscribers running agentic batch work on idle hardware** |
+
+**The short version:** if your workload is "repeat a prompt every N
+minutes," `/loop` is fine. If your workload is "run a Python project
+that calls Claude, hits APIs, writes files, and does it on a schedule
+that won't eat my active session" — that's what claude-p is for. Cron
+gets you halfway there; claude-p adds the subscription awareness, cost
+tracking, and a dashboard so you're not flying blind.
+
 ## Quick look
 
 A job is a folder with a `job.yaml` and a `main.py`:
