@@ -53,9 +53,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   public signature is unchanged; claude-specific kwargs (`allowed_tools`,
   `permission_mode`, `add_dir`) now land in
   `RunOptions.backend_options`.
-- Scaffolder SSE events changed shape — browser now sees canonical
-  `{kind, data}` events, not raw stream-json. Template updated to
-  match; any external consumer of the SSE stream will need to adapt.
 - `run_claude(on_event=...)` callback now receives canonical
   `{kind, data}` dicts, not raw stream-json. If a job inspected
   `ev["type"]` or `ev["message"]["content"]`, switch to `ev["kind"]`
