@@ -88,6 +88,14 @@ Open <http://localhost:8080>. Full install options:
 [docs/install.md](./docs/install.md).
 
 
+## Who it's for
+
+Claude Max subscribers with a spare laptop or home server who want to
+actually use the tokens they're paying for. Solo hackers, homelab
+tinkerers, indie builders — anyone who'd rather run overnight batch
+jobs on hardware they own than pay for another SaaS. If you need
+multi-user RBAC or a team-grade DAG engine, this isn't it.
+
 ## Docs
 
 - [docs/overview.md](./docs/overview.md) — why this exists, what
