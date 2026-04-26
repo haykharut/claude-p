@@ -11,8 +11,6 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
-from claude_p import run_claude
-
 log = logging.getLogger(__name__)
 
 REPO = "haykharut/claude-p"
@@ -199,6 +197,78 @@ class ProposalsFile(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Claude CLI helper
+# ---------------------------------------------------------------------------
+
+
+def run_claude(
+    prompt: str,
+    *,
+    allowed_tools: list[str],
+    max_turns: int,
+    max_budget_usd: float,
+    cwd: Path,
+) -> dict:
+    """Shell out to claude -p and return the parsed result envelope."""
+    claude_cli = os.environ.get("CLAUDE_P_CLAUDE_CLI", "claude")
+    argv = [
+        claude_cli,
+        "-p",
+        "--output-format",
+        "json",
+        "--verbose",
+        "--permission-mode",
+        "dontAsk",
+        "--allowedTools",
+        ",".join(allowed_tools),
+        "--max-budget-usd",
+        f"{max_budget_usd:g}",
+        "--max-turns",
+        str(max_turns),
+        prompt,
+    ]
+    result = subprocess.run(argv, capture_output=True, text=True, cwd=cwd)
+    if result.returncode != 0:
+        print(f"claude -p failed (exit {result.returncode})", file=sys.stderr)
+        print(result.stderr[-3000:], file=sys.stderr)
+        sys.exit(1)
+
+    envelope = json.loads(result.stdout)
+    cost = float(envelope.get("cost_usd") or envelope.get("total_cost_usd") or 0)
+    turns = int(envelope.get("num_turns") or 0)
+    is_error = bool(envelope.get("is_error"))
+    print(f"  cost=${cost:.2f}, turns={turns}, error={is_error}")
+
+    _report_to_ledger(envelope)
+    return envelope
+
+
+def _report_to_ledger(envelope: dict) -> None:
+    run_id = os.environ.get("CLAUDE_P_RUN_ID")
+    job_dir = os.environ.get("CLAUDE_P_JOB_DIR")
+    if not run_id or not job_dir:
+        return
+    usage = envelope.get("usage") or {}
+    if not isinstance(usage, dict):
+        usage = {}
+    record = {
+        "cost_usd": float(envelope.get("cost_usd") or envelope.get("total_cost_usd") or 0),
+        "input_tokens": int(usage.get("input_tokens") or 0),
+        "output_tokens": int(usage.get("output_tokens") or 0),
+        "cache_read_tokens": int(usage.get("cache_read_input_tokens") or 0),
+        "cache_creation_tokens": int(usage.get("cache_creation_input_tokens") or 0),
+        "num_turns": int(envelope.get("num_turns") or 0),
+        "session_id": envelope.get("session_id"),
+        "is_error": bool(envelope.get("is_error")),
+        "model_usage": envelope.get("modelUsage"),
+    }
+    run_dir = Path(job_dir) / "runs" / run_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+    with (run_dir / "claude_calls.jsonl").open("a") as f:
+        f.write(json.dumps(record) + "\n")
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
@@ -243,7 +313,19 @@ def is_duplicate(new_title: str, existing_titles: list[str], threshold: float = 
 
 def get_existing_issue_titles() -> list[str]:
     result = subprocess.run(
-        ["gh", "issue", "list", "--state", "all", "--limit", "200", "--json", "title", "--repo", REPO],
+        [
+            "gh",
+            "issue",
+            "list",
+            "--state",
+            "all",
+            "--limit",
+            "200",
+            "--json",
+            "title",
+            "--repo",
+            REPO,
+        ],
         capture_output=True,
         text=True,
     )
@@ -265,17 +347,13 @@ def main() -> None:
 
     # Phase 1: brainstorm
     print("=== Phase 1: brainstorm ===")
-    result1 = run_claude(
+    run_claude(
         prompt=PHASE1_PROMPT,
         allowed_tools=["Read", "Write", "Bash"],
         max_turns=25,
         max_budget_usd=1.50,
         cwd=workspace,
     )
-    print(f"Phase 1 cost: ${result1.cost_usd:.2f}, turns: {result1.num_turns}")
-    if result1.is_error:
-        print(f"Phase 1 failed: {result1.text}", file=sys.stderr)
-        sys.exit(1)
 
     candidates_path = workspace / "candidates.json"
     if not candidates_path.exists():
@@ -288,17 +366,13 @@ def main() -> None:
 
     # Phase 2: evaluate
     print("=== Phase 2: evaluate ===")
-    result2 = run_claude(
+    run_claude(
         prompt=PHASE2_PROMPT,
         allowed_tools=["Read", "Write"],
         max_turns=10,
         max_budget_usd=0.75,
         cwd=workspace,
     )
-    print(f"Phase 2 cost: ${result2.cost_usd:.2f}, turns: {result2.num_turns}")
-    if result2.is_error:
-        print(f"Phase 2 failed: {result2.text}", file=sys.stderr)
-        sys.exit(1)
 
     proposals_path = workspace / "proposals.json"
     if not proposals_path.exists():
@@ -332,7 +406,18 @@ def main() -> None:
             label_args.extend(["--label", label])
 
         result = subprocess.run(
-            ["gh", "issue", "create", "--title", p.title, "--body", body, *label_args, "--repo", REPO],
+            [
+                "gh",
+                "issue",
+                "create",
+                "--title",
+                p.title,
+                "--body",
+                body,
+                *label_args,
+                "--repo",
+                REPO,
+            ],
             capture_output=True,
             text=True,
         )
@@ -344,7 +429,6 @@ def main() -> None:
             print(f"  FAILED: {p.title}: {result.stderr}", file=sys.stderr)
 
     print(f"\n=== Done: {created} issues created, {skipped_dedup} skipped (dedup) ===")
-    print(f"Total cost: ${result1.cost_usd + result2.cost_usd:.2f}")
 
 
 if __name__ == "__main__":

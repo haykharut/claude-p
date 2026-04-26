@@ -2,4 +2,7 @@
 name = "meta-builder"
 version = "0.1.0"
 requires-python = ">=3.12"
-dependencies = ["claude-p"]
+dependencies = ["pydantic>=2.8"]
+
+[tool.uv]
+package = false

@@ -11,8 +11,6 @@ import sys
 import traceback
 from pathlib import Path
 
-from claude_p import run_claude
-
 log = logging.getLogger(__name__)
 
 REPO = "haykharut/claude-p"
@@ -23,6 +21,83 @@ LABELS = [
     ("in-progress", "FBCA04", "meta-builder is working on this"),
     ("builder-failed", "D93F0B", "meta-builder attempted but checks failed"),
 ]
+
+
+# ---------------------------------------------------------------------------
+# Claude CLI helper
+# ---------------------------------------------------------------------------
+
+
+def run_claude(
+    prompt: str,
+    *,
+    allowed_tools: list[str],
+    max_turns: int,
+    max_budget_usd: float,
+    cwd: Path,
+) -> dict:
+    """Shell out to claude -p and return the parsed result envelope."""
+    claude_cli = os.environ.get("CLAUDE_P_CLAUDE_CLI", "claude")
+    argv = [
+        claude_cli,
+        "-p",
+        "--output-format",
+        "json",
+        "--verbose",
+        "--permission-mode",
+        "dontAsk",
+        "--allowedTools",
+        ",".join(allowed_tools),
+        "--max-budget-usd",
+        f"{max_budget_usd:g}",
+        "--max-turns",
+        str(max_turns),
+        prompt,
+    ]
+    result = subprocess.run(argv, capture_output=True, text=True, cwd=cwd)
+    if result.returncode != 0:
+        print(f"claude -p failed (exit {result.returncode})", file=sys.stderr)
+        print(result.stderr[-3000:], file=sys.stderr)
+        return {"is_error": True, "cost_usd": 0, "num_turns": 0}
+
+    envelope = json.loads(result.stdout)
+    cost = float(envelope.get("cost_usd") or envelope.get("total_cost_usd") or 0)
+    turns = int(envelope.get("num_turns") or 0)
+    is_error = bool(envelope.get("is_error"))
+    print(f"  cost=${cost:.2f}, turns={turns}, error={is_error}")
+
+    _report_to_ledger(envelope)
+    return envelope
+
+
+def _report_to_ledger(envelope: dict) -> None:
+    run_id = os.environ.get("CLAUDE_P_RUN_ID")
+    job_dir = os.environ.get("CLAUDE_P_JOB_DIR")
+    if not run_id or not job_dir:
+        return
+    usage = envelope.get("usage") or {}
+    if not isinstance(usage, dict):
+        usage = {}
+    record = {
+        "cost_usd": float(envelope.get("cost_usd") or envelope.get("total_cost_usd") or 0),
+        "input_tokens": int(usage.get("input_tokens") or 0),
+        "output_tokens": int(usage.get("output_tokens") or 0),
+        "cache_read_tokens": int(usage.get("cache_read_input_tokens") or 0),
+        "cache_creation_tokens": int(usage.get("cache_creation_input_tokens") or 0),
+        "num_turns": int(envelope.get("num_turns") or 0),
+        "session_id": envelope.get("session_id"),
+        "is_error": bool(envelope.get("is_error")),
+        "model_usage": envelope.get("modelUsage"),
+    }
+    run_dir = Path(job_dir) / "runs" / run_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+    with (run_dir / "claude_calls.jsonl").open("a") as f:
+        f.write(json.dumps(record) + "\n")
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
 
 def ensure_labels() -> None:
@@ -228,17 +303,16 @@ def main() -> None:
         # Implementation
         print("=== Running Claude to implement ===")
         prompt = build_implementation_prompt(issue_number, issue_title, issue_body)
-        result = run_claude(
+        envelope = run_claude(
             prompt=prompt,
             allowed_tools=["Read", "Write", "Edit", "Bash"],
             max_turns=60,
             max_budget_usd=5.00,
             cwd=repo_dir,
         )
-        print(f"Implementation cost: ${result.cost_usd:.2f}, turns: {result.num_turns}")
 
-        if result.is_error:
-            print(f"Claude reported error: {result.text}", file=sys.stderr)
+        if envelope.get("is_error"):
+            print("Claude reported an error during implementation", file=sys.stderr)
 
         # Verification
         print("=== Running checks ===")
@@ -250,14 +324,13 @@ def main() -> None:
                 "The following checks failed after your implementation. "
                 "Fix them and re-run the checks.\n\n" + failure_output
             )
-            retry = run_claude(
+            run_claude(
                 prompt=retry_prompt,
                 allowed_tools=["Read", "Write", "Edit", "Bash"],
                 max_turns=20,
                 max_budget_usd=1.50,
                 cwd=repo_dir,
             )
-            print(f"Retry cost: ${retry.cost_usd:.2f}, turns: {retry.num_turns}")
             checks_passed, failure_output = run_checks(repo_dir)
 
         # Check if there are actual changes
@@ -312,20 +385,17 @@ def main() -> None:
             label_issue(issue_number, add=["builder-failed"])
 
         # Write build log
-        total_cost = result.cost_usd
         build_log = {
             "issue_number": issue_number,
             "issue_title": issue_title,
             "branch": branch,
             "checks_passed": checks_passed,
-            "cost_usd": total_cost,
             "pr_url": pr_result.stdout.strip(),
         }
         (workspace / "build_log.json").write_text(json.dumps(build_log, indent=2))
 
         status = "ready for review" if checks_passed else "DRAFT (checks failed)"
         print(f"\n=== Done: PR {status} ===")
-        print(f"Total cost: ${total_cost:.2f}")
 
     except Exception:
         if issue_number is not None:
