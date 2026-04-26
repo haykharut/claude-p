@@ -157,22 +157,23 @@ def _maybe_write_ledger(result: BackendResult) -> None:
         return
     run_dir = Path(job_dir) / "runs" / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
-    (run_dir / "claude_calls.jsonl").open("a").write(
-        json.dumps(
-            {
-                "cost_usd": result.cost_usd,
-                "input_tokens": result.input_tokens,
-                "output_tokens": result.output_tokens,
-                "cache_read_tokens": result.cache_read_tokens,
-                "cache_creation_tokens": result.cache_creation_tokens,
-                "num_turns": result.num_turns,
-                "session_id": result.session_id,
-                "is_error": result.is_error,
-                "model_usage": result.model_usage,
-            }
+    with (run_dir / "claude_calls.jsonl").open("a") as f:
+        f.write(
+            json.dumps(
+                {
+                    "cost_usd": result.cost_usd,
+                    "input_tokens": result.input_tokens,
+                    "output_tokens": result.output_tokens,
+                    "cache_read_tokens": result.cache_read_tokens,
+                    "cache_creation_tokens": result.cache_creation_tokens,
+                    "num_turns": result.num_turns,
+                    "session_id": result.session_id,
+                    "is_error": result.is_error,
+                    "model_usage": result.model_usage,
+                }
+            )
+            + "\n"
         )
-        + "\n"
-    )
     if result.rate_limit_events:
         with (run_dir / "claude_rate_limits.jsonl").open("a") as f:
             for ev in result.rate_limit_events:

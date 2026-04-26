@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Close `claude_calls.jsonl` after each ledger write.**
+  `_maybe_write_ledger()` now uses a context manager for the per-call
+  ledger file, matching the existing rate-limit ledger path and
+  preventing leaked file descriptors in loop-heavy jobs.
 - **meta-scout: fix `--verbose` causing JSON array output.** Removed
   `--verbose` from `claude -p` invocation which caused `--output-format json`
   to return a message array instead of a result envelope, crashing on
