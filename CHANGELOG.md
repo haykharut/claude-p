@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **job detail page: LLM config card now renders correctly.** Updated
+  `job_detail.html` to reference `m.llm` instead of the removed `m.claude`
+  attribute, aligning field paths with `LlmConfig` (`max_budget_usd`,
+  `model`, `max_turns`, `backend`, `options`).
 - **meta-scout: fix `--verbose` causing JSON array output.** Removed
   `--verbose` from `claude -p` invocation which caused `--output-format json`
   to return a message array instead of a result envelope, crashing on

@@ -70,11 +70,11 @@
         <div><strong>{{ m.runtime }}</strong> &middot; <code>{{ m.entrypoint }}</code></div>
         <div class="metric-sub">timeout: {{ m.timeout }}</div>
       </div>
-      {% if m.claude %}
+      {% if m.llm %}
       <div>
-        <div class="metric-label">Claude</div>
-        <div>budget ${{ "%.2f"|format(m.claude.max_budget_usd) }} &middot; {{ m.claude.permission_mode }}{% if m.claude.max_turns %} &middot; {{ m.claude.max_turns }} turns{% endif %}</div>
-        <div class="metric-sub">tools: {{ m.claude.allowed_tools|join(', ') }}</div>
+        <div class="metric-label">LLM</div>
+        <div>budget ${{ "%.2f"|format(m.llm.max_budget_usd) }}{% if m.llm.model %} &middot; {{ m.llm.model }}{% endif %}{% if m.llm.max_turns %} &middot; {{ m.llm.max_turns }} turns{% endif %}</div>
+        <div class="metric-sub">backend: {{ m.llm.backend or 'default' }}{% if m.llm.options %} &middot; {{ m.llm.options.keys()|list|join(', ') }}{% endif %}</div>
       </div>
       {% endif %}
       <div>
