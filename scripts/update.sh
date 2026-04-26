@@ -49,6 +49,27 @@ run_migrations() {
   ok "database up to date"
 }
 
+# ── sync repo-tracked jobs ─────────────────────────────────────────
+sync_jobs() {
+  local jobs_src="${REPO_DIR}/jobs"
+  local jobs_dst="${DATA_DIR}/fs/jobs"
+  if [[ ! -d "${jobs_src}" ]]; then
+    return
+  fi
+  info "syncing repo-tracked jobs…"
+  for job_dir in "${jobs_src}"/*/; do
+    [[ -f "${job_dir}/job.yaml" ]] || continue
+    local slug
+    slug="$(basename "${job_dir}")"
+    # Copy job files, preserving workspace/ and runs/ if they exist at destination
+    mkdir -p "${jobs_dst}/${slug}"
+    cp "${job_dir}"job.yaml "${jobs_dst}/${slug}/"
+    cp "${job_dir}"*.py "${jobs_dst}/${slug}/" 2>/dev/null || true
+    cp "${job_dir}"pyproject.toml "${jobs_dst}/${slug}/" 2>/dev/null || true
+  done
+  ok "jobs synced"
+}
+
 # ── restart ────────────────────────────────────────────────────────
 restart_service() {
   if systemctl --user is-active "${SERVICE_NAME}" >/dev/null 2>&1; then
@@ -72,6 +93,7 @@ main() {
   pull_latest
   sync_venv
   run_migrations
+  sync_jobs
   restart_service
   echo
   ok "done"

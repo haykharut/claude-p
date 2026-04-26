@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `approved`-labeled GitHub issue, implements it on a feature branch
   using Claude, runs lint + tests (with one retry), and opens a PR.
   Draft PRs for failing checks, full PRs for clean implementations.
+- **`scripts/update.sh` now syncs repo-tracked jobs.** Copies
+  `jobs/*/` into `~/claudectl/fs/jobs/` on each update, preserving
+  existing workspace and run data. No more broken symlinks on remote
+  servers.
 
 ### Changed
 - **README trimmed from ~206 to ~120 lines.** Moved "Why this exists",
