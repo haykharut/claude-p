@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Fix broken LLM config card in job detail page.** Updated
+  `job_detail.html` to reference `m.llm` instead of the removed
+  `m.claude`, so the budget/model/backend card actually renders.
 - **Close `claude_calls.jsonl` after each ledger write.**
   `_maybe_write_ledger()` now uses a context manager for the per-call
   ledger file, matching the existing rate-limit ledger path and
