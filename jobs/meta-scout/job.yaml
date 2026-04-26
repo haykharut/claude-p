@@ -1,0 +1,16 @@
+name: meta-scout
+description: weekly codebase analysis — proposes feature ideas as GitHub issues
+runtime: uv
+entrypoint: main.py
+schedule: "0 6 * * 0"
+timeout: 30m
+workspace: true
+output_globs: ["candidates.json", "proposals.json"]
+llm:
+  max_budget_usd: 2.50
+  options:
+    allowed_tools: [Read, Write, Bash]
+    permission_mode: dontAsk
+notify:
+  on_success: dashboard
+  on_failure: dashboard

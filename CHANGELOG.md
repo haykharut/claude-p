@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`jobs/meta-scout` — weekly codebase analysis job.** Runs two-phase
+  Claude evaluation (brainstorm → filter) and creates GitHub issues
+  labeled `scout-proposal` for the top-scoring feature ideas. Includes
+  entrypoint-side dedup against existing issues.
+- **`jobs/meta-builder` — daily builder job.** Picks the oldest
+  `approved`-labeled GitHub issue, implements it on a feature branch
+  using Claude, runs lint + tests (with one retry), and opens a PR.
+  Draft PRs for failing checks, full PRs for clean implementations.
+
 ### Changed
 - **README trimmed from ~206 to ~120 lines.** Moved "Why this exists",
   "What people build", "Who it's for" into `docs/overview.md`. Moved

@@ -1,0 +1,17 @@
+name: meta-builder
+description: daily builder — picks an approved issue, implements it, opens a PR
+runtime: uv
+entrypoint: main.py
+schedule: "0 3 * * *"
+timeout: 45m
+workspace: true
+output_globs: ["build_log.json"]
+llm:
+  max_budget_usd: 5.00
+  max_turns: 60
+  options:
+    allowed_tools: [Read, Write, Edit, Bash]
+    permission_mode: dontAsk
+notify:
+  on_success: dashboard
+  on_failure: dashboard
