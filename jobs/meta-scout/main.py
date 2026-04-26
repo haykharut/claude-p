@@ -216,7 +216,6 @@ def run_claude(
         "-p",
         "--output-format",
         "json",
-        "--verbose",
         "--permission-mode",
         "dontAsk",
         "--allowedTools",
@@ -233,7 +232,11 @@ def run_claude(
         print(result.stderr[-3000:], file=sys.stderr)
         sys.exit(1)
 
-    envelope = json.loads(result.stdout)
+    parsed = json.loads(result.stdout)
+    if isinstance(parsed, list):
+        envelope = next((e for e in reversed(parsed) if isinstance(e, dict) and "cost_usd" in e), parsed[-1] if parsed else {})
+    else:
+        envelope = parsed
     cost = float(envelope.get("cost_usd") or envelope.get("total_cost_usd") or 0)
     turns = int(envelope.get("num_turns") or 0)
     is_error = bool(envelope.get("is_error"))

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **meta-scout: fix `--verbose` causing JSON array output.** Removed
+  `--verbose` from `claude -p` invocation which caused `--output-format json`
+  to return a message array instead of a result envelope, crashing on
+  `'list' object has no attribute 'get'`. Added defensive list handling.
+
 ### Added
 - **`jobs/meta-scout` — weekly codebase analysis job.** Runs two-phase
   Claude evaluation (brainstorm → filter) and creates GitHub issues
